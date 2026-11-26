@@ -68,6 +68,7 @@ h1 span, .paywall h2 span { color: var(--lime); }
 .event-list { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-direction: column; gap: 6px; counter-reset: event; }
 .event-row { min-height: 58px; display: grid; grid-template-columns: 35px minmax(0, 1fr) 74px; align-items: center; gap: 13px; padding: 8px 10px; border: 1px solid var(--line); background: #101722; transition: border-color .16s, background .16s, transform .16s; }
 .event-row:hover { border-color: var(--line-bright); background: var(--surface-raised); }
+.event-row:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
 .event-row.correct { border-color: #789743; background: #141d17; }
 .event-row.incorrect { border-color: #603636; background: #1d1418; }
 .position { display: grid; place-items: center; width: 29px; height: 29px; border: 1px solid var(--line-bright); color: var(--muted); font: 10px var(--mono); }
