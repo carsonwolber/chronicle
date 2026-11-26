@@ -36,7 +36,7 @@ function setStatus() {
   elements.playsLed.style.opacity = left ? "1" : ".25";
   elements.playsLabel.textContent = `${left} ${left === 1 ? "PLAY" : "PLAYS"} LEFT TODAY`;
   elements.nextPlay.disabled = !locked || left === 0;
-  elements.nextPlay.textContent = left === 0 ? "NO PLAYS LEFT" : "SKIP ROUND";
+  elements.nextPlay.textContent = left === 0 ? "NO PLAYS LEFT" : "NEXT FREE PLAY";
   elements.checkOrder.disabled = locked || left === 0;
   const score = locked ? state.score : null;
   elements.scoreValue.textContent = score === null ? "—" : `${score}/5`;
@@ -151,8 +151,18 @@ function checkOrder() {
 }
 
 function showAnswer(sorted = [...currentPack.events].sort((a, b) => a.year - b.year)) {
-  elements.result.innerHTML = `<span class="result-label">THE TIMELINE</span>${sorted.map(event => `<a href="${event.source}" target="_blank" rel="noreferrer">${event.title}</a> <span>(${event.year})</span>`).join("<br>")}`;
+  elements.result.innerHTML = `<span class="result-label">THE TIMELINE</span>${sorted.map(event => `<a href="${event.source}" target="_blank" rel="noreferrer">${event.title}</a> <span>(${event.year})</span>`).join("<br>")}<button class="share-result" id="shareResult" type="button">COPY RESULT <span aria-hidden="true">↗</span></button>`;
   elements.result.hidden = false;
+  document.getElementById("shareResult").addEventListener("click", async event => {
+    const tiles = order.map((eventIndex, position) => eventIndex === currentCorrectOrder[position] ? "🟩" : "⬛").join("");
+    const shareText = `CHRONICLE ${elements.issueNumber.textContent} · ${state.score}/5\n${tiles}`;
+    try {
+      await navigator.clipboard.writeText(shareText);
+      event.currentTarget.textContent = "COPIED";
+    } catch {
+      event.currentTarget.textContent = "COPY UNAVAILABLE";
+    }
+  });
 }
 
 function nextPlay() {
