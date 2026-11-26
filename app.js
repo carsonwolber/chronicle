@@ -23,10 +23,6 @@ function dailyPuzzleIndex() {
   return day % packs.length;
 }
 
-function puzzleForPlay(play) {
-  return packs[(dailyPuzzleIndex() + play) % packs.length];
-}
-
 function persist() {
   localStorage.setItem(stateKey, JSON.stringify(state));
 }
@@ -86,6 +82,7 @@ function drawRows() {
     const row = document.createElement("li");
     row.className = "event-row";
     row.dataset.eventId = event.id;
+    row.tabIndex = locked ? -1 : 0;
     const badge = document.createElement("span");
     badge.className = "position";
     badge.textContent = String(position + 1).padStart(2, "0");
@@ -125,8 +122,10 @@ function move(position, direction) {
   if (locked) return;
   const target = position + direction;
   if (target < 0 || target >= order.length) return;
+  const movingId = currentPack.events[order[position]].id;
   [order[position], order[target]] = [order[target], order[position]];
   drawRows();
+  [...elements.eventList.children].find(row => row.dataset.eventId === movingId)?.focus();
 }
 
 function checkOrder() {
@@ -191,6 +190,14 @@ elements.upgradeTop.addEventListener("click", openPaywall);
 elements.upgradeSide.addEventListener("click", openPaywall);
 elements.paywall.addEventListener("click", event => {
   if (event.target === elements.paywall) closePaywall();
+});
+elements.eventList.addEventListener("keydown", event => {
+  if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+  const row = event.target.closest(".event-row");
+  if (!row) return;
+  event.preventDefault();
+  const position = order.findIndex(eventIndex => currentPack.events[eventIndex].id === row.dataset.eventId);
+  move(position, event.key === "ArrowUp" ? -1 : 1);
 });
 document.addEventListener("keydown", event => {
   if (event.key === "Escape" && !elements.paywall.hidden) closePaywall();
