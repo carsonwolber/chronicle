@@ -96,6 +96,9 @@ h1 span, .paywall h2 span { color: var(--lime); }
 .result { padding: 0 0 19px; color: var(--muted); font-size: 11px; line-height: 1.7; }
 .result a { color: var(--cyan); text-decoration-color: #82d9d055; text-underline-offset: 3px; }
 .result-label { display: block; margin-bottom: 7px; color: var(--text); font: 9px var(--mono); letter-spacing: .12em; }
+.share-result { display: block; margin-top: 14px; padding: 8px 10px; border: 1px solid var(--line-bright); background: transparent; color: var(--text); font: 9px var(--mono); letter-spacing: .09em; cursor: pointer; }
+.share-result:hover { border-color: var(--lime); color: var(--lime); }
+.share-result span { margin-left: 6px; color: var(--lime); }
 .rail { display: flex; flex-direction: column; gap: 10px; }
 .rail .panel { padding: 18px; }
 .rail-label { display: flex; justify-content: space-between; color: var(--muted); font-size: 9px; letter-spacing: .12em; }
