@@ -32,6 +32,8 @@ References:
 
 **Proposal:** use a compact, dark interface with high contrast, editorial mono labels, lime feedback, tight bordered surfaces, and a one-screen game board. Keep the daily counter and unlimited path visible, with no parchment/serif treatment. The visual system is deliberately lightweight so it works as a fast static page.
 
+Reference cues are the daily identity and spoiler-safe share output associated with [Wordle](https://www.nytimes.com/games/wordle/index.html), the daily-plus-unlimited structure in [Globle](https://globle.game/how-to-play), and the compact clue rows in [Countryle](https://countryle.com/). Chronicle keeps its own event-ordering mechanic and visual identity.
+
 ## Deliberately deferred
 
 - Payment provider, price, or subscription logic
