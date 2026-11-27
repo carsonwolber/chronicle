@@ -35,7 +35,7 @@
   }
 
   function selectAnnualEventTitle(candidates) {
-    const usable = candidates.filter(candidate => isEligibleAnnualEvent(candidate.title));
+    const usable = candidates.filter(candidate => isEligibleAnnualEvent(candidate.title) && eventTitle.test(candidate.title));
     if (!usable.length) return null;
     return usable.sort((a, b) => Number(eventTitle.test(b.title)) - Number(eventTitle.test(a.title)) || a.position - b.position || a.title.length - b.title.length)[0].title;
   }
