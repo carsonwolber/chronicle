@@ -5,7 +5,6 @@ const maxPersonEventDistance = 25;
 const slot = Math.floor(Date.now() / windowLength);
 const stateKey = `chroniclr:${slot}`;
 const windowCacheKey = `chroniclr:window:v2:${slot}`;
-const packs = window.chroniclrThemePacks;
 const state = JSON.parse(localStorage.getItem(stateKey) || "null") || { plays: 0, lastResult: null };
 const elements = Object.fromEntries(["resetTimer", "orderMode", "themeMode", "nearMode", "gamePanel", "challengeHeading", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "nextPlay", "checkOrder", "shuffleRound", "resultDialog", "resultScore", "resultGrid", "shareResult", "copyResult", "shareX", "shareWhatsApp", "closeResultDialog", "shareFeedback"].map(id => [id, document.getElementById(id)]));
 let mode = localStorage.getItem("chroniclr:mode") || "random";
@@ -25,6 +24,7 @@ let randomLoadError = false;
 let shareMessage = "";
 let shareText = "";
 let shareUrl = "";
+let themeLoadKey = "";
 
 function seededRandom(seed) {
   let value = seed >>> 0;
@@ -111,6 +111,90 @@ async function fetchYearEvents(year) {
   return page ? annualWindowEvents(year, extractEventsSection(content)) : [];
 }
 
+function selectThemeEvents(events, random) {
+  const windows = [];
+  for (const startYear of [...new Set(events.map(event => event.year))].sort((a, b) => a - b)) {
+    const byYear = new Map();
+    for (const event of events) {
+      if (event.year < startYear || event.year > startYear + 40) continue;
+      if (!byYear.has(event.year)) byYear.set(event.year, []);
+      byYear.get(event.year).push(event);
+    }
+    if (byYear.size >= 5) windows.push(byYear);
+  }
+  if (!windows.length) return null;
+  const yearsByWindow = windows[Math.floor(random() * windows.length)];
+  const years = shuffle([...yearsByWindow.keys()], random).slice(0, 5).sort((a, b) => a - b);
+  return years.map(year => {
+    const candidates = yearsByWindow.get(year);
+    return candidates[Math.floor(random() * candidates.length)];
+  });
+}
+
+async function fetchRandomTheme(seed) {
+  const random = seededRandom(hashSeed(slot + ":" + seed + ":theme"));
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const randomUrl = wikimediaUrl("https://en.wikipedia.org/w/api.php", { action: "query", list: "random", rnnamespace: "0", rnlimit: "1", formatversion: "2" });
+    const randomResponse = await fetch(randomUrl, { headers: { Accept: "application/json" } });
+    if (!randomResponse.ok) throw new Error("Wikipedia topics are unavailable.");
+    const randomData = await randomResponse.json();
+    const topicPage = randomData.query?.random?.[0];
+    if (!topicPage) continue;
+
+    const categoryUrl = wikimediaUrl("https://en.wikipedia.org/w/api.php", { action: "query", prop: "categories", titles: topicPage.title, cllimit: "max", clshow: "!hidden", formatversion: "2" });
+    const categoryResponse = await fetch(categoryUrl, { headers: { Accept: "application/json" } });
+    if (!categoryResponse.ok) throw new Error("Wikipedia categories are unavailable.");
+    const categoryData = await categoryResponse.json();
+    const categories = categoryData.query?.pages?.[0]?.categories || [];
+    const usableCategories = categories.filter(category => {
+      const name = category.title.replace(/^Category:/, "");
+      const lower = name.toLocaleLowerCase();
+      const excluded = ["all ", "articles ", "pages ", "wikipedia ", "cs1 ", "webarchive", "short description", "births", "deaths", "living people", "people from", "people living", "year of", "use dmy", "use mdy", "commons category link"];
+      return !excluded.some(prefix => lower.startsWith(prefix))
+        && !lower.includes(" by year")
+        && !lower.includes(" by country")
+        && !lower.includes(" by century")
+        && !/\d{4}/.test(name);
+    });
+    if (!usableCategories.length) continue;
+
+    const category = usableCategories[Math.floor(random() * usableCategories.length)];
+    const membersUrl = wikimediaUrl("https://en.wikipedia.org/w/api.php", { action: "query", generator: "categorymembers", gcmtitle: category.title, gcmnamespace: "0", gcmlimit: "50", prop: "pageprops", ppprop: "wikibase_item", formatversion: "2" });
+    const membersResponse = await fetch(membersUrl, { headers: { Accept: "application/json" } });
+    if (!membersResponse.ok) throw new Error("Wikipedia topic members are unavailable.");
+    const membersData = await membersResponse.json();
+    const pages = membersData.query?.pages || [];
+    const itemIds = [...new Set(pages.map(page => page.pageprops?.wikibase_item).filter(Boolean))];
+    if (itemIds.length < 5) continue;
+
+    const entitiesUrl = wikimediaUrl("https://www.wikidata.org/w/api.php", { action: "wbgetentities", ids: itemIds.join("|"), props: "claims|descriptions", languages: "en", languagefallback: "1" });
+    const entitiesResponse = await fetch(entitiesUrl, { headers: { Accept: "application/json" } });
+    if (!entitiesResponse.ok) throw new Error("Wikidata dates are unavailable.");
+    const entitiesData = await entitiesResponse.json();
+    const events = pages.flatMap(page => {
+      const itemId = page.pageprops?.wikibase_item;
+      const entity = entitiesData.entities?.[itemId];
+      if (!entity || itemIsHuman(entity)) return [];
+      const year = entityYears(entity.claims || {})
+        .filter(value => value >= minYear && value <= maxYear)
+        .sort((a, b) => a - b)[0];
+      if (!Number.isFinite(year)) return [];
+      return [{
+        id: itemId,
+        title: page.title,
+        year,
+        context: entity.descriptions?.en?.value || "",
+        source: "https://en.wikipedia.org/wiki/" + encodeURIComponent(page.title.replaceAll(" ", "_"))
+      }];
+    });
+    const selected = selectThemeEvents(events, random);
+    if (!selected) continue;
+    const topic = category.title.replace(/^Category:/, "");
+    return { theme: "WIKIPEDIA THEME", title: topic, events: selected };
+  }
+  throw new Error("Wikipedia did not return a topic with five dated articles.");
+}
+
 function selectWindowEvents(events, year, roundNumber) {
   const random = seededRandom(hashSeed(`${slot}:${year}:${roundNumber}:events`));
   const candidates = shuffle(events.filter(event => Math.abs(event.year - year) <= 7), random);
@@ -147,16 +231,6 @@ async function loadRandomWindow() {
   }
 }
 
-function getThemePack(roundNumber, isPreview = false) {
-  if (isPreview) {
-    const alternatives = packs.filter(pack => pack.theme !== currentPack?.theme);
-    const choices = alternatives.length ? alternatives : packs;
-    return choices[Math.floor(Math.random() * choices.length)];
-  }
-  const random = seededRandom(hashSeed(`${slot}:${roundNumber}:theme`));
-  return packs[Math.floor(random() * packs.length)];
-}
-
 function persist() {
   localStorage.setItem(stateKey, JSON.stringify(state));
 }
@@ -182,7 +256,7 @@ function updateStatus() {
   const currentResult = state.lastResult && state.lastResult.round === state.plays - 1 && state.lastResult.mode === mode;
   elements.nextPlay.disabled = !state.lastResult;
   elements.nextPlay.textContent = "NEXT ROUND";
-  elements.checkOrder.disabled = locked;
+  elements.checkOrder.disabled = locked || (mode === "theme" && currentPack?.events?.length !== 5);
   elements.eventSearch.disabled = mode === "near" && currentResult;
   elements.searchEvent.disabled = mode === "near" && currentResult;
   elements.shuffleRound.hidden = mode === "near";
@@ -198,27 +272,64 @@ function setupRandomRound(roundNumber) {
 }
 
 function setupThemeRound(roundNumber) {
-  const pack = getThemePack(roundNumber, debugPreview);
-  currentPack = pack;
-  const seed = debugPreview ? debugSeed : roundNumber;
-  order = shuffle(pack.events.map((event, index) => index), seededRandom(hashSeed(`${slot}:${seed}:theme-order`)));
-}
+  const prior = state.lastResult;
+  if (!debugPreview && prior && prior.round === roundNumber && prior.mode === "theme") {
+    currentPack = { title: prior.title, theme: prior.theme, events: prior.events, themeKey: "prior" };
+    order = prior.order;
+    return;
+  }
 
+  const isPreview = debugPreview;
+  const requestKey = slot + ":" + roundNumber + ":" + (isPreview ? debugSeed : "round");
+  if (currentPack?.themeKey === requestKey) {
+    order = currentPack.events.length ? shuffle(currentPack.events.map((event, index) => index), seededRandom(hashSeed(requestKey + ":order"))) : [];
+    return;
+  }
+
+  const cacheKey = "chroniclr:theme:" + slot + ":" + roundNumber;
+  if (!isPreview) {
+    const cached = JSON.parse(localStorage.getItem(cacheKey) || "null");
+    if (cached && Array.isArray(cached.events) && cached.events.length === 5) {
+      currentPack = { ...cached, themeKey: requestKey };
+      order = shuffle(currentPack.events.map((event, index) => index), seededRandom(hashSeed(requestKey + ":order")));
+      return;
+    }
+  }
+
+  currentPack = { theme: "WIKIPEDIA THEME", title: "Finding a topic…", events: [], themeKey: requestKey };
+  order = [];
+  if (themeLoadKey === requestKey) return;
+  themeLoadKey = requestKey;
+  fetchRandomTheme(requestKey).then(pack => {
+    if (mode !== "theme" || themeLoadKey !== requestKey || debugPreview !== isPreview) return;
+    currentPack = { ...pack, themeKey: requestKey };
+    if (!isPreview) localStorage.setItem(cacheKey, JSON.stringify(pack));
+    order = shuffle(currentPack.events.map((event, index) => index), seededRandom(hashSeed(requestKey + ":order")));
+    render();
+  }).catch(() => {
+    if (mode !== "theme" || themeLoadKey !== requestKey || debugPreview !== isPreview) return;
+    currentPack = { theme: "WIKIPEDIA THEME", title: "Try another theme", events: [], themeKey: requestKey, loadFailed: true };
+    render();
+  });
+}
 function updateYearLabels() {
   const dash = elements.yearWindow.querySelector(".window-dash");
   const target = mode === "near" ? currentTargetYear() : null;
   const activeBaseYear = debugPreview && mode === "random" ? debugYear : baseYear;
-  const years = mode === "near" ? [target] : mode === "theme" && currentPack ? currentPack.events.map(event => event.year) : [activeBaseYear - 7, activeBaseYear + 7];
-  elements.windowStart.textContent = Math.min(...years);
-  elements.windowEnd.textContent = Math.max(...years);
+  const themeYears = mode === "theme" ? currentPack?.events?.map(event => event.year) || [] : [];
+  const years = mode === "near" ? [target] : mode === "theme" ? themeYears : [activeBaseYear - 7, activeBaseYear + 7];
+  elements.windowStart.textContent = years.length ? Math.min(...years) : "";
+  elements.windowEnd.textContent = years.length ? Math.max(...years) : "";
   dash.hidden = mode === "near";
   elements.windowEnd.hidden = mode === "near";
-  elements.yearWindow.setAttribute("aria-label", `Year range ${Math.min(...years)} to ${Math.max(...years)}`);
+  elements.yearWindow.hidden = mode === "theme" && !years.length;
+  elements.yearWindow.setAttribute("aria-label", years.length ? "Year range " + Math.min(...years) + " to " + Math.max(...years) : "Wikipedia theme loading");
   elements.targetYear.textContent = target || currentTargetYear();
 }
 
 function setMode(nextMode) {
   if (mode !== nextMode && nextMode === "near") elements.eventSearch.value = "";
+  if (mode !== nextMode) themeLoadKey = "";
   debugPreview = false;
   mode = nextMode;
   localStorage.setItem("chroniclr:mode", mode);
@@ -523,6 +634,7 @@ function render() {
     drawRows();
   }
   if (mode === "random" && !currentPack.events.length) elements.feedback.textContent = randomLoadError ? "Wikipedia could not load this random window. Use Shuffle to try another." : "No linked event pages were found in this window. Use Shuffle to try another.";
+  if (mode === "theme" && !currentPack.events.length) elements.feedback.textContent = currentPack.loadFailed ? "Wikipedia could not find five dated articles for a topic. Use Shuffle to try another." : "Finding a random Wikipedia topic…";
   updateStatus();
 }
 
