@@ -3,6 +3,8 @@ const minYear = 15;
 const maxYear = 2016;
 const maxPersonEventDistance = 25;
 const articleQuality = window.articleQuality;
+const targetYearCenter = 1900;
+const targetYearScale = 1000;
 const slot = Math.floor(Date.now() / windowLength);
 const closerStateKey = "chroniclr:closer";
 const closerSavedState = JSON.parse(localStorage.getItem(closerStateKey) || "null");
@@ -176,7 +178,7 @@ function selectCloserYears(targetYear) {
 async function generateCloserRound() {
   let lastError = null;
   for (let attempt = 0; attempt < 12; attempt += 1) {
-    const targetYear = minYear + Math.floor(Math.random() * (maxYear - minYear + 1));
+    const targetYear = weightedTargetYear(Math.random);
     const selectedYears = selectCloserYears(targetYear);
     if (!selectedYears) continue;
     try {
@@ -310,10 +312,23 @@ function persist() {
   localStorage.setItem(stateKey, JSON.stringify(state));
 }
 
+function weightedTargetYear(random) {
+  let totalWeight = 0;
+  for (let year = minYear; year <= maxYear; year += 1) {
+    totalWeight += 1 / (1 + Math.abs(year - targetYearCenter) / targetYearScale);
+  }
+  let selection = random() * totalWeight;
+  for (let year = minYear; year <= maxYear; year += 1) {
+    selection -= 1 / (1 + Math.abs(year - targetYearCenter) / targetYearScale);
+    if (selection < 0) return year;
+  }
+  return maxYear;
+}
+
 function currentTargetYear() {
   if (state.lastResult && state.lastResult.round === state.plays - 1 && state.lastResult.mode === "near") return state.lastResult.targetYear;
   const random = seededRandom(hashSeed(`${slot}:${state.plays}:target`));
-  return minYear + Math.floor(random() * (maxYear - minYear + 1));
+  return weightedTargetYear(random);
 }
 
 function updateClock() {
@@ -1029,7 +1044,7 @@ async function scoreSearchResult(title) {
     }
     const distance = noEventMatch ? null : Math.abs(year - target);
     const bonus = noEventMatch ? 0 : await rarityBonus(canonicalTitle, resolved.entity);
-    const proximity = noEventMatch ? 0 : 900 * Math.pow(0.85, distance);
+    const proximity = noEventMatch ? 0 : 900 / (1 + distance / 50);
     const score = Math.min(1000, Math.round(proximity * (1 + bonus / 900)));
     const rarityPoints = noEventMatch ? 0 : score - Math.round(proximity);
     state.plays += 1;
