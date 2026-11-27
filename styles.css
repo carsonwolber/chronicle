@@ -112,6 +112,23 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 .page-footer { display: flex; justify-content: space-between; margin: 25px 0 24px; padding-top: 15px; border-top: 1px solid #e8e0cf1e; color: var(--faint); font: 8px var(--mono); letter-spacing: .08em; }
 .page-footer span span { padding: 0 4px; color: var(--brass); }
 
+.result-dialog { width: min(430px, calc(100vw - 30px)); margin: auto; padding: 25px; border: 1px solid var(--line-light); background: linear-gradient(145deg, #29251f 0%, #211e19 58%, #1e1b16 100%); color: var(--ink); box-shadow: 0 28px 90px #0009; }
+.result-dialog::backdrop { background: #090806d9; backdrop-filter: blur(5px); }
+.result-dialog-header { display: flex; align-items: center; justify-content: space-between; }
+.result-close { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--line-light); background: transparent; color: var(--muted); font-size: 22px; cursor: pointer; }
+.result-dialog h2 { margin: 20px 0 8px; font: 400 32px/1.1 var(--serif); }
+.result-score { color: var(--brass-bright); font: 400 72px/.95 var(--serif); letter-spacing: -.05em; }
+.result-grid { margin-top: 20px; font: 27px/1 var(--sans); letter-spacing: .14em; }
+.result-share-actions { display: flex; gap: 8px; margin-top: 24px; }
+.share-button, .copy-result { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 44px; padding: 0 14px; border: 1px solid var(--brass); background: var(--brass); color: #1b1811; font: 9px var(--mono); letter-spacing: .07em; cursor: pointer; }
+.share-button svg { width: 17px; height: 17px; }
+.copy-result { border-color: var(--line-light); background: transparent; color: var(--muted); }
+.result-share-links { display: flex; gap: 8px; margin-top: 12px; }
+.result-share-links a { flex: 1; padding: 12px; border: 1px solid var(--line); color: var(--muted); text-align: center; text-decoration: none; font: 9px var(--mono); letter-spacing: .07em; }
+.result-share-links a:hover, .copy-result:hover, .result-close:hover { border-color: var(--brass); color: var(--brass-bright); }
+.share-feedback { min-height: 18px; margin-top: 12px; color: var(--muted); font: 11px var(--sans); }
+
+
 @media (max-width: 900px) {
 
   .game-panel { padding: 28px 23px; }
