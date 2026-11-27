@@ -118,8 +118,8 @@ async function fetchYearEvents(year) {
   return page ? annualWindowEvents(year, extractEventsSection(content)) : [];
 }
 
-async function fetchAnnualRange(startYear, endYear) {
-  const years = Array.from({ length: endYear - startYear + 1 }, (_, index) => startYear + index);
+async function fetchAnnualYears(yearsToFetch) {
+  const years = [...new Set(yearsToFetch)];
   const pages = [];
   for (let index = 0; index < years.length; index += 50) {
     const batch = years.slice(index, index + 50);
@@ -137,9 +137,11 @@ async function fetchAnnualRange(startYear, endYear) {
   });
 }
 
-function selectCloserPair(events, targetYear, seed) {
+function selectCloserPair(events, targetYear, selectedYears, seed) {
+  const allowedYears = new Set(selectedYears);
   const eventsByDistance = new Map();
   for (const event of events) {
+    if (!allowedYears.has(event.year)) continue;
     const distance = Math.abs(event.year - targetYear);
     if (distance > 25) continue;
     if (!eventsByDistance.has(distance)) eventsByDistance.set(distance, []);
@@ -155,19 +157,31 @@ function selectCloserPair(events, targetYear, seed) {
   const first = firstEvents[0];
   const second = secondEvents.find(event => event.title !== first.title);
   if (!first || !second) return null;
-  const pair = [first, second];
-  return { targetYear, events: pair, correctIndex: firstDistance < secondDistance ? 0 : 1 };
+  return { targetYear, events: [first, second], correctIndex: firstDistance < secondDistance ? 0 : 1 };
+}
+
+function selectCloserYears(targetYear) {
+  const startYear = Math.max(minYear, targetYear - 25);
+  const endYear = Math.min(maxYear, targetYear + 25);
+  const years = Array.from({ length: endYear - startYear + 1 }, (_, index) => startYear + index);
+  const pairs = [];
+  for (let first = 0; first < years.length; first += 1) {
+    for (let second = first + 1; second < years.length; second += 1) {
+      if (Math.abs(years[first] - targetYear) !== Math.abs(years[second] - targetYear)) pairs.push([years[first], years[second]]);
+    }
+  }
+  return pairs.length ? pairs[Math.floor(Math.random() * pairs.length)] : null;
 }
 
 async function generateCloserRound() {
   let lastError = null;
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
     const targetYear = minYear + Math.floor(Math.random() * (maxYear - minYear + 1));
-    const startYear = Math.max(minYear, targetYear - 25);
-    const endYear = Math.min(maxYear, targetYear + 25);
+    const selectedYears = selectCloserYears(targetYear);
+    if (!selectedYears) continue;
     try {
-      const events = await fetchAnnualRange(startYear, endYear);
-      const round = selectCloserPair(events, targetYear, Date.now() + ":" + attempt);
+      const events = await fetchAnnualYears(selectedYears);
+      const round = selectCloserPair(events, targetYear, selectedYears, Date.now() + ":" + attempt);
       if (round) return round;
     } catch (error) {
       lastError = error;
