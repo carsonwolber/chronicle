@@ -6,7 +6,7 @@ const stateKey = `chroniclr:${slot}`;
 const windowCacheKey = `chroniclr:window:${slot}`;
 const packs = window.chroniclrThemePacks;
 const state = JSON.parse(localStorage.getItem(stateKey) || "null") || { plays: 0, lastResult: null };
-const elements = Object.fromEntries(["resetTimer", "issueNumber", "editionLabel", "playsLabel", "playBeads", "orderMode", "themeMode", "nearMode", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "footnoteText", "nextPlay", "checkOrder", "roundIndex", "scoreValue", "scoreUnit", "progressFill", "progressCopy", "sourceNote", "upgradeTop", "upgradeSide", "paywall", "closePaywall", "paywallDone"].map(id => [id, document.getElementById(id)]));
+const elements = Object.fromEntries(["resetTimer", "issueNumber", "editionLabel", "playsLabel", "playBeads", "orderMode", "themeMode", "nearMode", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "footnoteText", "footnote", "nextPlay", "checkOrder", "roundIndex", "scoreValue", "scoreUnit", "progressFill", "progressCopy", "sourceNote", "upgradeTop", "upgradeSide", "paywall", "closePaywall", "paywallDone"].map(id => [id, document.getElementById(id)]));
 let mode = localStorage.getItem("chroniclr:mode") || "random";
 let baseYear = minYear;
 let windowEvents = [];
@@ -157,7 +157,7 @@ function updateClock() {
 function updateStatus() {
   const remaining = Math.max(0, 3 - state.plays);
   const currentResult = state.lastResult && state.lastResult.round === state.plays - 1 && state.lastResult.mode === mode;
-  elements.playsLabel.textContent = `${remaining} ${remaining === 1 ? "ROUND" : "ROUNDS"} AVAILABLE`;
+  elements.playsLabel.textContent = "";
   [...elements.playBeads.children].forEach((bead, index) => bead.classList.toggle("is-used", index >= remaining));
   elements.roundIndex.textContent = `${String(Math.min(state.plays + 1, 3)).padStart(2, "0")} / 03`;
   elements.nextPlay.disabled = !state.lastResult;
@@ -166,7 +166,7 @@ function updateStatus() {
   elements.eventSearch.disabled = mode === "near" && (remaining === 0 || currentResult);
   elements.searchEvent.disabled = mode === "near" && (remaining === 0 || currentResult);
   elements.issueNumber.textContent = String(slot % 1000).padStart(3, "0");
-  elements.editionLabel.textContent = "THE EIGHT-HOUR EDITION";
+  elements.editionLabel.textContent = "";
 }
 
 function setupRandomRound(roundNumber) {
@@ -400,13 +400,15 @@ function render() {
   elements.answerPanel.hidden = true;
   elements.searchResults.replaceChildren();
   elements.eventEntry.hidden = mode !== "near";
+  elements.footnote.hidden = mode === "random";
+  elements.sourceNote.hidden = mode === "random";
   elements.eventList.hidden = mode === "near";
   elements.promptLine.hidden = mode === "near";
   elements.checkOrder.hidden = mode === "near";
-  elements.challengeEyebrow.textContent = mode === "random" ? "FIVE MOMENTS · ONE WINDOW" : mode === "theme" ? "A CURATED TIMELINE" : "A YEAR TO ORBIT";
-  elements.challengeTitle.textContent = mode === "random" ? "Five moments. One timeline." : mode === "theme" ? "A themed timeline." : "Name an event near this year.";
-  elements.footnoteText.textContent = mode === "theme" ? "A curated set of events from one historical theme." : mode === "near" ? "Name a real event. The closer it is, the higher the score." : "Five moments drawn from a random 15-year window.";
-  elements.sourceNote.lastElementChild.textContent = mode === "random" ? "Events drawn from Wikipedia's year pages." : "Event dates checked against linked Wikipedia records.";
+  elements.challengeEyebrow.textContent = mode === "random" ? "" : mode === "theme" ? "A CURATED TIMELINE" : "A YEAR TO ORBIT";
+  elements.challengeTitle.textContent = mode === "random" ? "" : mode === "theme" ? "A themed timeline." : "Name an event near this year.";
+  elements.footnoteText.textContent = mode === "theme" ? "A curated set of events from one historical theme." : mode === "near" ? "Name a real event. The closer it is, the higher the score." : "";
+  elements.sourceNote.lastElementChild.textContent = mode === "random" ? "" : "Event dates checked against linked Wikipedia records.";
   if (mode === "near") {
     currentPack = null;
     order = [];
