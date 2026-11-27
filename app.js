@@ -763,17 +763,6 @@ function renderCloserBoard() {
   });
 }
 
-function startCloserRun() {
-  closerLoadId += 1;
-  closerLoading = false;
-  closerLoadError = false;
-  closerState.score = 0;
-  closerState.round = null;
-  closerState.gameOver = false;
-  persistCloserState();
-  render();
-}
-
 function submitOrder() {
   if (locked || mode === "near") return;
   locked = true;
@@ -1183,6 +1172,11 @@ elements.eventSearch.addEventListener("keydown", event => {
 
 async function initialize() {
   await loadRandomWindow();
+  for (const [id, selectedMode] of [["orderMode", "random"], ["themeMode", "theme"], ["nearMode", "near"], ["closerMode", "closer"]]) {
+    const selected = mode === selectedMode;
+    elements[id].classList.toggle("is-active", selected);
+    elements[id].setAttribute("aria-selected", String(selected));
+  }
   render();
   updateClock();
   setInterval(updateClock, 1000);
