@@ -668,8 +668,7 @@ function nextPlay() {
 async function shuffleCurrentRound() {
   if (mode === "near") return;
   const previousYear = debugPreview ? debugYear : baseYear;
-  debugPreview = true;
-  debugSeed = `${Date.now()}-${Math.random()}`;
+  const nextSeed = `${Date.now()}-${Math.random()}`;
   elements.shuffleRound.disabled = true;
   elements.feedback.textContent = mode === "random" ? "Loading a new random window…" : "Shuffling the themed round…";
   if (mode === "random") {
@@ -677,7 +676,9 @@ async function shuffleCurrentRound() {
     while (requestedYear === previousYear) requestedYear = minYear + Math.floor(Math.random() * (maxYear - minYear + 1));
     try {
       const events = await fetchAnnualWindow(requestedYear);
-      if (!selectWindowEvents(events, requestedYear, debugSeed)) throw new Error("No suitable events were found.");
+      if (!selectWindowEvents(events, requestedYear, nextSeed)) throw new Error("No suitable events were found.");
+      debugPreview = true;
+      debugSeed = nextSeed;
       debugYear = requestedYear;
       debugEvents = events;
       randomLoadError = false;
@@ -686,6 +687,9 @@ async function shuffleCurrentRound() {
       elements.shuffleRound.disabled = false;
       return;
     }
+  } else {
+    debugPreview = true;
+    debugSeed = nextSeed;
   }
   render();
   elements.shuffleRound.disabled = false;
