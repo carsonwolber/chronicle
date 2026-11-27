@@ -2,6 +2,7 @@ const windowLength = 8 * 60 * 60 * 1000;
 const minYear = 15;
 const maxYear = 2016;
 const maxPersonEventDistance = 25;
+const articleQuality = window.articleQuality;
 const targetYearCenter = 1900;
 const targetYearScale = 1000;
 const slot = Math.floor(Date.now() / windowLength);
@@ -75,9 +76,8 @@ function annualWindowEvents(year, wikitext) {
     const datePrefix = line.length - match[1].length;
     const links = [...match[1].matchAll(/\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g)].map(link => ({ title: link[1].replaceAll("_", " ").trim(), label: (link[2] || link[1]).replaceAll("_", " ").trim(), position: line.indexOf(link[0]) }));
     const candidates = links.filter(link => link.position >= datePrefix && !/^(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}$/i.test(link.title) && !/^\d{1,4}$/.test(link.title) && !/^(?:Help|Special|File|Category|Wikipedia):/i.test(link.title));
-    const chosen = candidates.sort((a, b) => b.label.length - a.label.length)[0] || links.sort((a, b) => b.label.length - a.label.length)[0];
-    if (!chosen) continue;
-    const title = chosen.title;
+    const title = articleQuality.selectAnnualEventTitle(candidates);
+    if (!title) continue;
     const linkedTitles = [...new Set(links.map(link => link.title))];
     const context = match[1].replace(/\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g, (_, target, label) => (label || target).replaceAll("_", " ")).replace(/\{\{[^{}]*\}\}/g, "").replace(/'''?/g, "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
     const source = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replaceAll(" ", "_"))}`;
@@ -143,7 +143,7 @@ function selectCloserPair(events, targetYear, selectedYears, seed) {
   const allowedYears = new Set(selectedYears);
   const eventsByDistance = new Map();
   for (const event of events) {
-    if (!allowedYears.has(event.year)) continue;
+    if (!allowedYears.has(event.year) || !articleQuality.isEligibleAnnualEvent(event.title)) continue;
     const distance = Math.abs(event.year - targetYear);
     if (distance > 25) continue;
     if (!eventsByDistance.has(distance)) eventsByDistance.set(distance, []);
@@ -232,16 +232,7 @@ async function fetchRandomTheme(seed) {
     if (!categoryResponse.ok) throw new Error("Wikipedia categories are unavailable.");
     const categoryData = await categoryResponse.json();
     const categories = categoryData.query?.pages?.[0]?.categories || [];
-    const usableCategories = categories.filter(category => {
-      const name = category.title.replace(/^Category:/, "");
-      const lower = name.toLocaleLowerCase();
-      const excluded = ["all ", "articles ", "pages ", "wikipedia ", "cs1 ", "webarchive", "short description", "births", "deaths", "living people", "people from", "people living", "year of", "use dmy", "use mdy", "commons category link"];
-      return !excluded.some(prefix => lower.startsWith(prefix))
-        && !lower.includes(" by year")
-        && !lower.includes(" by country")
-        && !lower.includes(" by century")
-        && !/\d{4}/.test(name);
-    });
+    const usableCategories = categories.filter(category => articleQuality.isEligibleThemeCategory(category.title));
     if (!usableCategories.length) continue;
 
     const category = usableCategories[Math.floor(random() * usableCategories.length)];
@@ -260,7 +251,7 @@ async function fetchRandomTheme(seed) {
     const events = pages.flatMap(page => {
       const itemId = page.pageprops?.wikibase_item;
       const entity = entitiesData.entities?.[itemId];
-      if (!entity || itemIsHuman(entity)) return [];
+      if (!entity || itemIsHuman(entity) || !articleQuality.isEligibleThemeArticle(page.title, entity.descriptions?.en?.value || "", entity.claims || {})) return [];
       const year = entityYears(entity.claims || {})
         .filter(value => value >= minYear && value <= maxYear)
         .sort((a, b) => a - b)[0];
@@ -283,7 +274,7 @@ async function fetchRandomTheme(seed) {
 
 function selectWindowEvents(events, year, roundNumber) {
   const random = seededRandom(hashSeed(`${slot}:${year}:${roundNumber}:events`));
-  const candidates = shuffle(events.filter(event => Math.abs(event.year - year) <= 7), random);
+  const candidates = shuffle(events.filter(event => articleQuality.isEligibleAnnualEvent(event.title) && Math.abs(event.year - year) <= 7), random);
   const selected = [];
   const selectedYears = new Set();
   const selectedTitles = new Set();
@@ -490,19 +481,10 @@ function drawRows() {
     badge.className = "position";
     badge.textContent = String(position + 1).padStart(2, "0");
     if (mode === "theme") {
-      const copy = document.createElement("span");
-      copy.className = "event-copy";
       const title = document.createElement("span");
       title.className = "event-title";
       title.textContent = event.title;
-      copy.append(title);
-      if (event.context && event.context.toLocaleLowerCase() !== event.title.toLocaleLowerCase()) {
-        const context = document.createElement("span");
-        context.className = "event-context";
-        context.textContent = event.context;
-        copy.append(context);
-      }
-      row.append(badge, copy);
+      row.append(badge, title);
     } else {
       const title = document.createElement("span");
       title.className = "event-title";
