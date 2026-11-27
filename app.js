@@ -11,7 +11,7 @@ const closerSavedState = JSON.parse(localStorage.getItem(closerStateKey) || "nul
 const stateKey = `chroniclr:${slot}`;
 const windowCacheKey = `chroniclr:window:v2:${slot}`;
 const state = JSON.parse(localStorage.getItem(stateKey) || "null") || { plays: 0, lastResult: null };
-const elements = Object.fromEntries(["resetTimer", "orderMode", "themeMode", "nearMode", "closerMode", "gamePanel", "compareBoard", "comparePrompt", "compareOptions", "closerScore", "closerBest", "resultEyebrow", "resultDialogTitle", "challengeHeading", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "nextPlay", "checkOrder", "shuffleRound", "resultDialog", "resultScore", "resultGrid", "shareResult", "copyResult", "shareX", "shareWhatsApp", "closeResultDialog", "shareFeedback"].map(id => [id, document.getElementById(id)]));
+const elements = Object.fromEntries(["resetTimer", "orderMode", "themeMode", "nearMode", "closerMode", "gamePanel", "compareBoard", "comparePrompt", "compareOptions", "closerScore", "closerBest", "closerTargetYear", "resultEyebrow", "resultDialogTitle", "challengeHeading", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "nextPlay", "checkOrder", "shuffleRound", "resultDialog", "resultScore", "resultGrid", "shareResult", "copyResult", "shareX", "shareWhatsApp", "closeResultDialog", "shareFeedback"].map(id => [id, document.getElementById(id)]));
 let mode = localStorage.getItem("chroniclr:mode") || "random";
 let baseYear = minYear;
 let windowEvents = [];
@@ -425,6 +425,8 @@ function updateYearLabels() {
   elements.windowEnd.textContent = years.length ? Math.max(...years) : "";
   dash.hidden = mode === "near" || mode === "closer";
   elements.windowEnd.hidden = mode === "near" || mode === "closer";
+  elements.yearWindow.hidden = mode === "closer" || (mode === "theme" && !years.length);
+  elements.yearWindow.setAttribute("aria-label", mode === "closer" ? years.length ? "Target year " + years[0] : "Target year loading" : years.length ? "Year range " + Math.min(...years) + " to " + Math.max(...years) : "Wikipedia theme loading");
   elements.yearWindow.hidden = mode === "theme" && !years.length;
   elements.yearWindow.setAttribute("aria-label", mode === "closer" ? years.length ? "Target year " + years[0] : "Target year loading" : years.length ? "Year range " + Math.min(...years) + " to " + Math.max(...years) : "Theme loading");
   elements.targetYear.textContent = target || currentTargetYear();
@@ -609,13 +611,13 @@ function showOrderAnswer(score) {
 }
 
 function showRandomResult(score) {
-  elements.resultEyebrow.textContent = "RANDOM WINDOW";
+  elements.resultEyebrow.textContent = "RANDOM";
   elements.resultDialogTitle.textContent = "Round complete";
   const squares = order.map((eventIndex, position) => eventIndex === currentCorrectOrder[position] ? "🟩" : "⬛").join("");
   const url = new URL(window.location.href);
   url.search = "";
   url.hash = "";
-  shareText = `chroniclr · Random Window\n${score}/5 in the right position\n${squares}`;
+  shareText = `chroniclr · Random\n${score}/5 in the right position\n${squares}`;
   shareUrl = url.toString();
   shareMessage = `${shareText}\n${shareUrl}`;
   elements.resultScore.textContent = `${score}/5`;
@@ -724,8 +726,9 @@ async function prepareCloserRound() {
 function renderCloserBoard() {
   elements.closerScore.textContent = String(closerState.score);
   elements.closerBest.textContent = String(closerState.best || 0);
-  elements.compareOptions.replaceChildren();
   const round = closerState.round;
+  elements.closerTargetYear.textContent = round ? String(round.targetYear) : ""; 
+  elements.compareOptions.replaceChildren();
   if (closerState.gameOver && round) {
     elements.comparePrompt.textContent = "Which happened closer?";
     round.events.forEach((event, index) => {
@@ -820,7 +823,7 @@ function render() {
   elements.eventList.hidden = mode === "near" || mode === "closer";
   elements.promptLine.hidden = mode === "near" || mode === "closer";
   elements.checkOrder.hidden = mode === "near" || mode === "closer";
-  elements.challengeEyebrow.textContent = mode === "random" ? "RANDOM WINDOW" : mode === "theme" ? "THEMED" : mode === "closer" ? "CLOSER" : "";
+  elements.challengeEyebrow.textContent = mode === "random" ? "RANDOM" : mode === "theme" ? "THEMED" : mode === "closer" ? "CLOSER" : "";
   elements.challengeTitle.textContent = mode === "closer" ? "Closer" : "";
   if (mode === "near") {
     currentPack = null;
@@ -1106,7 +1109,7 @@ async function shuffleCurrentRound() {
   const previousYear = debugPreview ? debugYear : baseYear;
   const nextSeed = `${Date.now()}-${Math.random()}`;
   elements.shuffleRound.disabled = true;
-  elements.feedback.textContent = mode === "random" ? "Loading a new random window…" : "Shuffling the themed round…";
+  elements.feedback.textContent = mode === "random" ? "Loading a new round…" : "Shuffling the themed round…";
   if (mode === "random") {
     let requestedYear = minYear + Math.floor(Math.random() * (maxYear - minYear + 1));
     while (requestedYear === previousYear) requestedYear = minYear + Math.floor(Math.random() * (maxYear - minYear + 1));

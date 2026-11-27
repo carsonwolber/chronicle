@@ -29,7 +29,7 @@
   <main class="page">
     <section class="game-shell" aria-label="chroniclr game">
       <div class="mode-bar" role="tablist" aria-label="Game mode">
-        <button class="mode-tab is-active" id="orderMode" type="button" role="tab" aria-selected="true" aria-controls="gamePanel">RANDOM WINDOW</button>
+        <button class="mode-tab is-active" id="orderMode" type="button" role="tab" aria-selected="true" aria-controls="gamePanel">RANDOM</button>
         <button class="mode-tab" id="themeMode" type="button" role="tab" aria-selected="false" aria-controls="gamePanel">THEMED</button>
         <button class="mode-tab" id="nearMode" type="button" role="tab" aria-selected="false" aria-controls="gamePanel">NAME AN EVENT</button>
         <button class="mode-tab" id="closerMode" type="button" role="tab" aria-selected="false" aria-controls="gamePanel">CLOSER</button>
@@ -47,6 +47,7 @@
         <div class="prompt-line" id="promptLine"><span class="prompt-rule"></span><span>OLDEST TO NEWEST</span><span class="prompt-rule"></span></div>
         <section class="compare-board" id="compareBoard" hidden aria-label="Closer game">
           <div class="compare-score"><span>STREAK <strong id="closerScore">0</strong></span><span>BEST <strong id="closerBest">0</strong></span></div>
+          <div class="closer-target"><span class="closer-target-label">YEAR</span><strong class="closer-target-year" id="closerTargetYear"></strong></div>
           <p class="compare-prompt" id="comparePrompt">Which happened closer to this year?</p>
           <p class="compare-hint">Both events happened within 25 years.</p>
           <div class="compare-options" id="compareOptions"></div>
@@ -71,7 +72,7 @@
 
     <dialog class="result-dialog" id="resultDialog" aria-labelledby="resultDialogTitle">
       <div class="result-dialog-header">
-        <span class="eyebrow" id="resultEyebrow">RANDOM WINDOW</span>
+        <span class="eyebrow" id="resultEyebrow">RANDOM</span>
         <button class="result-close" id="closeResultDialog" type="button" aria-label="Close score popup">×</button>
       </div>
       <h2 id="resultDialogTitle">Round complete</h2>
