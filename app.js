@@ -25,6 +25,7 @@ let shareMessage = "";
 let shareText = "";
 let shareUrl = "";
 let themeLoadKey = "";
+let themeRequestId = 0;
 
 function seededRandom(seed) {
   let value = seed >>> 0;
@@ -299,15 +300,20 @@ function setupThemeRound(roundNumber) {
   currentPack = { theme: "WIKIPEDIA THEME", title: "Finding a topic…", events: [], themeKey: requestKey };
   order = [];
   if (themeLoadKey === requestKey) return;
+  const requestId = ++themeRequestId;
   themeLoadKey = requestKey;
   fetchRandomTheme(requestKey).then(pack => {
-    if (mode !== "theme" || themeLoadKey !== requestKey || debugPreview !== isPreview) return;
+    if (requestId !== themeRequestId) return;
+    themeLoadKey = "";
+    if (mode !== "theme" || debugPreview !== isPreview) return;
     currentPack = { ...pack, themeKey: requestKey };
     if (!isPreview) localStorage.setItem(cacheKey, JSON.stringify(pack));
     order = shuffle(currentPack.events.map((event, index) => index), seededRandom(hashSeed(requestKey + ":order")));
     render();
   }).catch(() => {
-    if (mode !== "theme" || themeLoadKey !== requestKey || debugPreview !== isPreview) return;
+    if (requestId !== themeRequestId) return;
+    themeLoadKey = "";
+    if (mode !== "theme" || debugPreview !== isPreview) return;
     currentPack = { theme: "WIKIPEDIA THEME", title: "Try another theme", events: [], themeKey: requestKey, loadFailed: true };
     render();
   });
@@ -329,7 +335,10 @@ function updateYearLabels() {
 
 function setMode(nextMode) {
   if (mode !== nextMode && nextMode === "near") elements.eventSearch.value = "";
-  if (mode !== nextMode) themeLoadKey = "";
+  if (mode !== nextMode) {
+    themeLoadKey = "";
+    themeRequestId += 1;
+  }
   debugPreview = false;
   mode = nextMode;
   localStorage.setItem("chroniclr:mode", mode);
