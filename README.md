@@ -1,35 +1,33 @@
-# Chronicle
+# chroniclr
 
-Chronicle is a daily history game about putting five events in chronological order. Every round is drawn from a curated time window of 15 years or less.
+chroniclr is a history game about dates and perspective. The default round draws a random year from 15–2016, gathers event entries from the surrounding 15 years, and asks players to put five of them in order.
 
-## Run the demo
+## Game modes
 
-Serve this directory with any static file server, then open `index.html`. For example:
+- **Random window:** one randomly selected year anchors a 15-year window. The game draws events from five distinct years in that window.
+- **Themed:** play a curated timeline from the local question bank in `data/puzzles.js`.
+- **Name an event:** get a target year, find a historical event through Wikipedia search, and score `max(0, 1000 − years away)`. The app checks the selected article's linked Wikidata record for a date.
+
+Each browser gets three rounds in each fixed eight-hour UTC block. The edition and random year are shared across players. The timer counts down to the next block. Progress is stored in browser local storage.
+
+## Wikipedia data
+
+For the random-window mode, chroniclr reads the Events section of Wikipedia's annual articles through the MediaWiki API. It draws one candidate from each of five different years inside the selected window and links back to the annual article. Category membership is useful for finding material, but year categories can mix event articles with places, organizations, and broad topic pages; the annual event lists provide dated clues directly.
+
+The event-name mode uses Wikipedia search and the linked Wikidata entity. It checks point in time, inception, start, publication, and end date claims in that order. Some pages have no suitable date; those results are rejected so an undated article cannot receive an arbitrary score.
+
+If Wikipedia is unavailable, random-window mode falls back to the curated local events. This local bank covers only a few time periods.
+
+## Run locally
+
+Serve the repository root with any static file server and open the printed URL. For example:
 
 ```sh
 python3 -m http.server 8000
 ```
 
-Open `http://localhost:8000`.
+## Deployment
 
-## Current demo
+The GitHub Actions workflow in `.github/workflows/pages.yml` packages the static app and deploys it to GitHub Pages when pushed to `main`.
 
-- One shared daily round followed by two free bonus rounds.
-- Reorder five event cards and score one point per event in its exact position.
-- See the answer years and source links after locking in.
-- The free-play counter is stored in this browser and resets at UTC midnight.
-- The unlimited button is a nonfunctional paywall mockup.
-
-The six sample rounds are curated demo content. They rotate as daily puzzles, so the bank is intentionally small and repeats.
-
-## Question data
-
-The prototype's puzzle bank lives in `data/puzzles.js`. Each pack has five events with unique years, source links, and a maximum 15-year spread. The app enforces these rules when it loads.
-
-For candidate discovery, Wikipedia category membership can provide a starting list of articles. Wikidata's point-in-time property (P585) can help find dates. Neither should publish a puzzle without editorial review: category membership is broad, date precision and sourcing vary, and the event wording needs to be short and unambiguous. The game itself reads a curated local bank rather than querying Wikipedia while someone is playing.
-
-The answer years are included in this static demo and can be inspected in browser source. Before a public paid launch, the daily answer should come from a server endpoint so future solutions are not shipped to every browser. The demo has no payment processing, accounts, or backend.
-
-## Design notes
-
-See [DECISIONS.md](DECISIONS.md) for the proposed game, question-bank, and source workflow decisions included for review.
+The app is a static prototype. It has no accounts, payments, subscription handling, or server-side answer protection. Round limits and answers are stored in or shipped to the browser.
