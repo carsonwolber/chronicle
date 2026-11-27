@@ -3,10 +3,10 @@ const minYear = 15;
 const maxYear = 2016;
 const slot = Math.floor(Date.now() / windowLength);
 const stateKey = `chroniclr:${slot}`;
-const windowCacheKey = `chroniclr:window:${slot}`;
+const windowCacheKey = `chroniclr:window:v2:${slot}`;
 const packs = window.chroniclrThemePacks;
 const state = JSON.parse(localStorage.getItem(stateKey) || "null") || { plays: 0, lastResult: null };
-const elements = Object.fromEntries(["resetTimer", "issueNumber", "editionLabel", "playsLabel", "playBeads", "orderMode", "themeMode", "nearMode", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "footnoteText", "footnote", "nextPlay", "checkOrder", "roundIndex", "scoreValue", "scoreUnit", "progressFill", "progressCopy", "sourceNote", "upgradeTop", "upgradeSide", "paywall", "closePaywall", "paywallDone"].map(id => [id, document.getElementById(id)]));
+const elements = Object.fromEntries(["resetTimer", "orderMode", "themeMode", "nearMode", "gamePanel", "challengeHeading", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "nextPlay", "checkOrder", "shuffleRound", "roundIndex", "scoreValue", "scoreUnit", "progressFill", "progressCopy", "upgradeTop", "upgradeSide", "paywall", "closePaywall", "paywallDone"].map(id => [id, document.getElementById(id)]));
 let mode = localStorage.getItem("chroniclr:mode") || "random";
 let baseYear = minYear;
 let windowEvents = [];
@@ -16,6 +16,11 @@ let order = [];
 let locked = false;
 let keyboardGrabbedId = null;
 let dragState = null;
+let debugPreview = false;
+let debugSeed = "";
+let debugYear = null;
+let debugEvents = [];
+let randomLoadError = false;
 
 function seededRandom(seed) {
   let value = seed >>> 0;
@@ -43,67 +48,68 @@ function shuffle(values, random) {
   return result;
 }
 
-function annualWindowEvents(year, extract) {
-  const heading = /(?:^|\n)Events\s*\n/i.exec(extract);
-  if (!heading) return [];
-  const start = heading.index + heading[0].length;
-  const rest = extract.slice(start);
-  const end = /\n(?:Births|Deaths|Nobel Prizes|Arts and culture|Sports)\s*\n/i.exec(rest);
-  const section = end ? rest.slice(0, end.index) : rest;
+function annualWindowEvents(year, wikitext) {
   const months = "January|February|March|April|May|June|July|August|September|October|November|December";
   const patterns = [
     new RegExp(`^(?:${months})\\s+\\d{1,2}(?:st|nd|rd|th)?\\s*[–—-]\\s*(.+)$`, "i"),
     new RegExp(`^\\d{1,2}(?:st|nd|rd|th)?\\s+(?:${months})\\s*[–—-]\\s*(.+)$`, "i")
   ];
   const results = [];
-  for (const rawLine of section.split(/\n+/)) {
-    const line = rawLine.replace(/^[*#•\s]+/, "").replace(/\s+/g, " ").trim();
-    if (!line) continue;
+  for (const rawLine of wikitext.split(/\n+/)) {
+    const line = rawLine.replace(/^[*#;:\s]+/, "").replace(/^'{2,3}([^']+)'{2,3}/, "$1").replace(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/, (_, target, label) => label || target).replace(/<ref\b[^>]*>[\s\S]*?<\/ref>/gi, "").replace(/<ref\b[^/]*\/>/gi, "").replace(/\s+/g, " ").trim();
     const match = patterns.map(pattern => line.match(pattern)).find(Boolean);
     if (!match) continue;
-    const title = match[1].replace(/\s*\[[0-9]+\]\s*/g, " ").trim();
-    if (title.length < 18 || title.length > 260) continue;
-    results.push({ id: `${year}-${results.length}`, title, year, source: `https://en.wikipedia.org/wiki/${year}` });
+    const datePrefix = line.length - match[1].length;
+    const links = [...match[1].matchAll(/\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g)].map(link => ({ title: link[1].replaceAll("_", " ").trim(), label: (link[2] || link[1]).replaceAll("_", " ").trim(), position: line.indexOf(link[0]) }));
+    const candidates = links.filter(link => link.position >= datePrefix && !/^(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}$/i.test(link.title) && !/^\d{1,4}$/.test(link.title) && !/^(?:Help|Special|File|Category|Wikipedia):/i.test(link.title));
+    const chosen = candidates.sort((a, b) => b.label.length - a.label.length)[0] || links.sort((a, b) => b.label.length - a.label.length)[0];
+    if (!chosen) continue;
+    const title = chosen.title;
+    const linkedTitles = [...new Set(links.map(link => link.title))];
+    const context = match[1].replace(/\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g, (_, target, label) => (label || target).replaceAll("_", " ")).replace(/\{\{[^{}]*\}\}/g, "").replace(/'''?/g, "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+    const source = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replaceAll(" ", "_"))}`;
+    results.push({ id: `${year}-${hashSeed(title)}`, title, linkedTitles, context, year, source });
   }
-  return results.slice(0, 60);
+  return [...new Map(results.map(event => [event.title, event])).values()].slice(0, 100);
 }
 
 async function fetchAnnualWindow(centerYear) {
   const years = Array.from({ length: 15 }, (_, index) => centerYear - 7 + index);
-  const params = new URLSearchParams({ action: "query", prop: "extracts", titles: years.join("|"), redirects: "1", exsectionformat: "plain", exchars: "8000", format: "json", formatversion: "2", origin: "*" });
-  params.set("explaintext", "1");
+  const params = new URLSearchParams({ action: "query", prop: "revisions", titles: years.join("|"), redirects: "1", rvprop: "content", rvsection: "1", rvslots: "main", format: "json", formatversion: "2", origin: "*" });
   const response = await fetch(`https://en.wikipedia.org/w/api.php?${params}`, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error("Wikipedia could not be reached.");
   const data = await response.json();
   const pages = data.query?.pages || [];
   return pages.flatMap(page => {
     const year = Number(page.title);
-    return Number.isInteger(year) ? annualWindowEvents(year, page.extract || "") : [];
+    const content = page.revisions?.[0]?.slots?.main?.content || page.revisions?.[0]?.slots?.main?.["*"] || "";
+    return Number.isInteger(year) ? annualWindowEvents(year, content) : [];
   });
 }
 
-function fallbackWindow(centerYear) {
-  const events = packs.flatMap(pack => pack.events);
-  const feasible = [];
-  for (let year = minYear; year <= maxYear; year += 1) {
-    const available = new Set(events.filter(event => Math.abs(event.year - year) <= 7).map(event => event.year));
-    if (available.size >= 5) feasible.push(year);
-  }
-  if (!feasible.length) return { year: packs[0].events[2].year, events };
-  const nearest = feasible.sort((a, b) => Math.abs(a - centerYear) - Math.abs(b - centerYear))[0];
-  return { year: nearest, events };
+async function fetchYearEvents(year) {
+  const params = new URLSearchParams({ action: "query", prop: "revisions", titles: String(year), redirects: "1", rvprop: "content", rvsection: "1", rvslots: "main", format: "json", formatversion: "2", origin: "*" });
+  const response = await fetch(`https://en.wikipedia.org/w/api.php?${params}`, { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error("Wikipedia could not be reached.");
+  const data = await response.json();
+  const page = data.query?.pages?.[0];
+  const content = page?.revisions?.[0]?.slots?.main?.content || page?.revisions?.[0]?.slots?.main?.["*"] || "";
+  return page ? annualWindowEvents(year, content) : [];
 }
 
 function selectWindowEvents(events, year, roundNumber) {
-  const grouped = new Map();
-  for (const event of events) {
-    if (Math.abs(event.year - year) > 7) continue;
-    if (!grouped.has(event.year)) grouped.set(event.year, []);
-    grouped.get(event.year).push(event);
-  }
   const random = seededRandom(hashSeed(`${slot}:${year}:${roundNumber}:events`));
-  const years = shuffle([...grouped.keys()], random);
-  const selected = years.slice(0, 5).map(eventYear => shuffle(grouped.get(eventYear), random)[0]);
+  const candidates = shuffle(events.filter(event => Math.abs(event.year - year) <= 7), random);
+  const selected = [];
+  const selectedYears = new Set();
+  const selectedTitles = new Set();
+  for (const event of candidates) {
+    if (selectedYears.has(event.year) || selectedTitles.has(event.title)) continue;
+    selected.push(event);
+    selectedYears.add(event.year);
+    selectedTitles.add(event.title);
+    if (selected.length === 5) break;
+  }
   return selected.length === 5 ? selected : null;
 }
 
@@ -119,16 +125,20 @@ async function loadRandomWindow() {
       return;
     }
     windowEvents = await fetchAnnualWindow(baseYear);
-    if (!selectWindowEvents(windowEvents, baseYear, 0)) throw new Error("This year range did not yield enough events.");
+    if (!selectWindowEvents(windowEvents, baseYear, 0)) throw new Error("This year range did not yield enough linked events.");
     localStorage.setItem(windowCacheKey, JSON.stringify({ year: baseYear, events: windowEvents }));
   } catch {
-    const fallback = fallbackWindow(requestedYear);
-    baseYear = fallback.year;
-    windowEvents = fallback.events;
+    windowEvents = [];
+    randomLoadError = true;
   }
 }
 
-function getThemePack(roundNumber) {
+function getThemePack(roundNumber, isPreview = false) {
+  if (isPreview) {
+    const alternatives = packs.filter(pack => pack.theme !== currentPack?.theme);
+    const choices = alternatives.length ? alternatives : packs;
+    return choices[Math.floor(Math.random() * choices.length)];
+  }
   const random = seededRandom(hashSeed(`${slot}:${roundNumber}:theme`));
   return packs[Math.floor(random() * packs.length)];
 }
@@ -157,42 +167,36 @@ function updateClock() {
 function updateStatus() {
   const remaining = Math.max(0, 3 - state.plays);
   const currentResult = state.lastResult && state.lastResult.round === state.plays - 1 && state.lastResult.mode === mode;
-  elements.playsLabel.textContent = "";
-  [...elements.playBeads.children].forEach((bead, index) => bead.classList.toggle("is-used", index >= remaining));
   elements.roundIndex.textContent = `${String(Math.min(state.plays + 1, 3)).padStart(2, "0")} / 03`;
   elements.nextPlay.disabled = !state.lastResult;
   elements.nextPlay.textContent = remaining === 0 ? "NO ROUNDS LEFT" : "NEXT ROUND";
-  elements.checkOrder.disabled = locked || remaining === 0;
+  elements.checkOrder.disabled = locked || (remaining === 0 && !debugPreview);
   elements.eventSearch.disabled = mode === "near" && (remaining === 0 || currentResult);
   elements.searchEvent.disabled = mode === "near" && (remaining === 0 || currentResult);
-  elements.issueNumber.textContent = String(slot % 1000).padStart(3, "0");
-  elements.editionLabel.textContent = "";
+  elements.shuffleRound.hidden = mode === "near";
 }
 
 function setupRandomRound(roundNumber) {
-  currentPack = null;
-  const selected = selectWindowEvents(windowEvents, baseYear, roundNumber);
-  if (selected) {
-    currentPack = { title: "A random slice of history", theme: "Random window", events: selected };
-  } else {
-    const fallback = fallbackWindow(baseYear);
-    baseYear = fallback.year;
-    windowEvents = fallback.events;
-    currentPack = { title: "A random slice of history", theme: "Random window", events: selectWindowEvents(windowEvents, baseYear, roundNumber) };
-  }
-  order = shuffle(currentPack.events.map((event, index) => index), seededRandom(hashSeed(`${slot}:${roundNumber}:order`)));
+  const activeYear = debugPreview ? debugYear : baseYear;
+  const activeEvents = debugPreview ? debugEvents : windowEvents;
+  const seed = debugPreview ? debugSeed : roundNumber;
+  const selected = selectWindowEvents(activeEvents, activeYear, seed);
+  currentPack = selected ? { title: "", theme: "", events: selected } : { title: "", theme: "", events: [] };
+  order = shuffle(currentPack.events.map((event, index) => index), seededRandom(hashSeed(`${slot}:${activeYear}:${seed}:order`)));
 }
 
 function setupThemeRound(roundNumber) {
-  const pack = getThemePack(roundNumber);
+  const pack = getThemePack(roundNumber, debugPreview);
   currentPack = pack;
-  order = shuffle(pack.events.map((event, index) => index), seededRandom(hashSeed(`${slot}:${roundNumber}:theme-order`)));
+  const seed = debugPreview ? debugSeed : roundNumber;
+  order = shuffle(pack.events.map((event, index) => index), seededRandom(hashSeed(`${slot}:${seed}:theme-order`)));
 }
 
 function updateYearLabels() {
   const dash = elements.yearWindow.querySelector(".window-dash");
   const target = mode === "near" ? currentTargetYear() : null;
-  const years = mode === "near" ? [target] : mode === "theme" && currentPack ? currentPack.events.map(event => event.year) : [baseYear - 7, baseYear + 7];
+  const activeBaseYear = debugPreview && mode === "random" ? debugYear : baseYear;
+  const years = mode === "near" ? [target] : mode === "theme" && currentPack ? currentPack.events.map(event => event.year) : [activeBaseYear - 7, activeBaseYear + 7];
   elements.windowStart.textContent = Math.min(...years);
   elements.windowEnd.textContent = Math.max(...years);
   dash.hidden = mode === "near";
@@ -202,6 +206,8 @@ function updateYearLabels() {
 }
 
 function setMode(nextMode) {
+  if (mode !== nextMode && nextMode === "near") elements.eventSearch.value = "";
+  debugPreview = false;
   mode = nextMode;
   localStorage.setItem("chroniclr:mode", mode);
   elements.orderMode.classList.toggle("is-active", mode === "random");
@@ -365,20 +371,22 @@ function showOrderAnswer(score) {
 }
 
 function submitOrder() {
-  if (locked || state.plays >= 3 || mode === "near") return;
+  if (locked || (state.plays >= 3 && !debugPreview) || mode === "near") return;
   locked = true;
   currentCorrectOrder = [...currentPack.events].sort((a, b) => a.year - b.year).map(event => currentPack.events.indexOf(event));
   const score = order.reduce((total, eventIndex, position) => total + Number(eventIndex === currentCorrectOrder[position]), 0);
-  state.plays += 1;
-  state.lastResult = { round: state.plays - 1, mode, score, title: currentPack.title, theme: currentPack.theme, events: currentPack.events, order: [...order] };
-  persist();
+  if (!debugPreview) {
+    state.plays += 1;
+    state.lastResult = { round: state.plays - 1, mode, score, title: currentPack.title, theme: currentPack.theme, events: currentPack.events, order: [...order] };
+    persist();
+  }
   drawRows();
   showOrderAnswer(score);
   updateStatus();
 }
 
 function showPriorResult() {
-  if (!state.lastResult || state.lastResult.round !== state.plays - 1 || state.lastResult.mode !== mode || mode === "near") return false;
+  if (debugPreview || !state.lastResult || state.lastResult.round !== state.plays - 1 || state.lastResult.mode !== mode || mode === "near") return false;
   locked = true;
   currentPack.title = state.lastResult.title;
   currentPack.theme = state.lastResult.theme;
@@ -394,39 +402,45 @@ function showPriorResult() {
 function render() {
   locked = false;
   keyboardGrabbedId = null;
+  elements.gamePanel?.classList.toggle("is-near", mode === "near");
   elements.feedback.textContent = "";
   elements.feedback.className = "feedback";
   elements.answerPanel.replaceChildren();
   elements.answerPanel.hidden = true;
   elements.searchResults.replaceChildren();
   elements.eventEntry.hidden = mode !== "near";
-  elements.footnote.hidden = mode === "random";
-  elements.sourceNote.hidden = mode === "random";
   elements.eventList.hidden = mode === "near";
   elements.promptLine.hidden = mode === "near";
   elements.checkOrder.hidden = mode === "near";
-  elements.challengeEyebrow.textContent = mode === "random" ? "" : mode === "theme" ? "A CURATED TIMELINE" : "A YEAR TO ORBIT";
-  elements.challengeTitle.textContent = mode === "random" ? "" : mode === "theme" ? "A themed timeline." : "Name an event near this year.";
-  elements.footnoteText.textContent = mode === "theme" ? "A curated set of events from one historical theme." : mode === "near" ? "Name a real event. The closer it is, the higher the score." : "";
-  elements.sourceNote.lastElementChild.textContent = mode === "random" ? "" : "Event dates checked against linked Wikipedia records.";
+  elements.challengeEyebrow.textContent = mode === "random" ? "RANDOM WINDOW" : mode === "theme" ? "THEMED" : "";
+  elements.challengeTitle.textContent = mode === "random" ? "" : mode === "theme" ? "" : "";
   if (mode === "near") {
     currentPack = null;
     order = [];
+    elements.challengeHeading.hidden = true;
     updateYearLabels();
     const prior = state.lastResult && state.lastResult.round === state.plays - 1 && state.lastResult.mode === "near" ? state.lastResult : null;
     elements.scoreValue.firstChild.textContent = prior ? String(prior.score) : "—";
     elements.scoreUnit.textContent = "/ 1000";
     elements.progressFill.style.width = prior ? `${prior.score / 10}%` : "0%";
-    elements.progressCopy.textContent = prior ? `${prior.distance} years from ${prior.targetYear}` : "Points for proximity";
+    elements.progressCopy.textContent = prior ? `${prior.distance} years from ${prior.targetYear}` : "Proximity + rarity";
     if (prior) {
       const label = document.createElement("span");
       label.className = "answer-title";
-      label.textContent = `${prior.score} POINTS · ${prior.distance} YEARS AWAY`;
+      label.textContent = `${prior.score} POINTS · ${prior.distance} YEARS AWAY · +${prior.rarityBonus || 0} RARITY`;
       const line = document.createElement("div");
-      line.append(answerLink({ title: prior.eventTitle, source: `https://en.wikipedia.org/wiki/${encodeURIComponent(prior.eventTitle.replaceAll(" ", "_"))}` }), document.createTextNode(` happened in ${prior.eventYear}. Your year was ${prior.targetYear}.`));
+      line.append(answerLink({ title: prior.eventTitle, source: prior.eventSource }), document.createTextNode(prior.personContext ? ` is named in a ${prior.targetYear} event: ${prior.personContext} ` : ` is dated ${prior.eventYear}. Your year was ${prior.targetYear}.`));
+      if (prior.evidenceSource) {
+        const evidence = document.createElement("a");
+        evidence.href = prior.evidenceSource;
+        evidence.target = "_blank";
+        evidence.rel = "noreferrer";
+        evidence.textContent = `Source: ${prior.targetYear} events`;
+        line.append(evidence);
+      }
       elements.answerPanel.append(label, line);
       elements.answerPanel.hidden = false;
-      elements.feedback.textContent = "Event verified against Wikidata.";
+      elements.feedback.textContent = prior.personContext ? "Person matched to an event on the target year page." : "Event date checked against Wikidata.";
       elements.feedback.className = "feedback positive";
       elements.eventSearch.disabled = true;
       elements.searchEvent.disabled = true;
@@ -438,6 +452,7 @@ function render() {
     updateStatus();
     return;
   }
+  elements.challengeHeading.hidden = false;
   if (mode === "random") setupRandomRound(state.plays);
   else setupThemeRound(state.plays);
   if (mode === "theme") {
@@ -445,6 +460,7 @@ function render() {
     elements.challengeTitle.textContent = currentPack.title;
   }
   updateYearLabels();
+  elements.shuffleRound.hidden = false;
   currentCorrectOrder = [...currentPack.events].sort((a, b) => a.year - b.year).map(event => currentPack.events.indexOf(event));
   if (!showPriorResult()) {
     drawRows();
@@ -453,6 +469,7 @@ function render() {
     elements.progressFill.style.width = "0%";
     elements.progressCopy.textContent = "Correct positions";
   }
+  if (mode === "random" && !currentPack.events.length) elements.feedback.textContent = randomLoadError ? "Wikipedia could not load this random window. Use Shuffle to try another." : "No linked event pages were found in this window. Use Shuffle to try another.";
   updateStatus();
 }
 
@@ -476,10 +493,10 @@ async function searchWikipedia() {
     const data = await response.json();
     const results = data.query?.search || [];
     if (!results.length) {
-      elements.feedback.textContent = "No matching event. Try a different name.";
+      elements.feedback.textContent = "No matching answer. Try a different name.";
       return;
     }
-    elements.feedback.textContent = "Choose the event you meant.";
+    elements.feedback.textContent = "Choose the event or person you meant.";
     for (const result of results) {
       const button = document.createElement("button");
       button.type = "button";
@@ -498,26 +515,63 @@ async function searchWikipedia() {
   }
 }
 
-async function resolveWikidataYear(title) {
+async function resolveWikidataEntity(title) {
   const pageUrl = wikimediaUrl("https://en.wikipedia.org/w/api.php", { action: "query", prop: "pageprops", ppprop: "wikibase_item", titles: title, redirects: "1", formatversion: "2" });
   const pageResponse = await fetch(pageUrl, { headers: { Accept: "application/json" } });
   if (!pageResponse.ok) throw new Error("The article date is unavailable.");
   const pageData = await pageResponse.json();
-  const itemId = pageData.query?.pages?.[0]?.pageprops?.wikibase_item;
+  const page = pageData.query?.pages?.[0];
+  const itemId = page?.pageprops?.wikibase_item;
   if (!itemId) return null;
-  const itemUrl = wikimediaUrl("https://www.wikidata.org/w/api.php", { action: "wbgetentities", ids: itemId, props: "claims" });
+  const itemUrl = wikimediaUrl("https://www.wikidata.org/w/api.php", { action: "wbgetentities", ids: itemId, props: "claims|sitelinks" });
   const itemResponse = await fetch(itemUrl, { headers: { Accept: "application/json" } });
   if (!itemResponse.ok) throw new Error("The article date is unavailable.");
   const itemData = await itemResponse.json();
-  const claims = itemData.entities?.[itemId]?.claims || {};
-  for (const property of ["P585", "P571", "P580", "P577", "P582"]) {
-    const claim = claims[property]?.find(value => value.mainsnak?.datavalue?.value?.time);
-    if (!claim) continue;
-    const time = claim.mainsnak.datavalue.value.time;
-    const match = time.match(/^([+-])0*(\d+)-/);
-    if (match) return Number(match[2]) * (match[1] === "-" ? -1 : 1);
+  return { itemId, title: page.title, entity: itemData.entities?.[itemId] || {} };
+}
+
+function entityYears(claims, properties = ["P585", "P580", "P577", "P571", "P582"]) {
+  const years = new Set();
+  for (const property of properties) {
+    for (const claim of claims[property] || []) {
+      const time = claim.mainsnak?.datavalue?.value?.time;
+      const match = time?.match(/^([+-])0*(\d+)-/);
+      if (match) years.add(Number(match[2]) * (match[1] === "-" ? -1 : 1));
+    }
   }
-  return null;
+  return [...years];
+}
+
+function itemIsHuman(entity) {
+  return (entity.claims?.P31 || []).some(claim => claim.mainsnak?.datavalue?.value?.id === "Q5");
+}
+
+function normalizedTitle(title) {
+  return title.replaceAll("_", " ").trim().toLocaleLowerCase();
+}
+
+async function targetYearPersonEvent(title, year) {
+  const events = await fetchYearEvents(year);
+  return events.find(event => event.linkedTitles?.some(linkedTitle => normalizedTitle(linkedTitle) === normalizedTitle(title))) || null;
+}
+
+async function rarityBonus(title, entity) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - 1);
+  const end = date.toISOString().slice(0, 10).replaceAll("-", "");
+  date.setUTCDate(date.getUTCDate() - 29);
+  const start = date.toISOString().slice(0, 10).replaceAll("-", "");
+  const article = encodeURIComponent(title.replaceAll(" ", "_"));
+  try {
+    const response = await fetch(`https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/${article}/daily/${start}00/${end}00`, { headers: { Accept: "application/json" } });
+    if (!response.ok) throw new Error("Page views are unavailable.");
+    const data = await response.json();
+    const views = (data.items || []).reduce((total, item) => total + item.views, 0);
+    return Math.max(0, Math.min(100, Math.round(100 * (1 - Math.log1p(views) / Math.log1p(1000000)))));
+  } catch {
+    const sitelinks = Object.keys(entity.sitelinks || {}).length;
+    return Math.max(0, Math.min(100, Math.round(100 * (1 - sitelinks / 100))));
+  }
 }
 
 async function scoreSearchResult(title) {
@@ -526,32 +580,63 @@ async function scoreSearchResult(title) {
     return;
   }
   elements.searchResults.replaceChildren();
-  elements.feedback.textContent = "Checking the event's date…";
+  elements.feedback.textContent = "Checking the date and connection…";
   elements.eventSearch.disabled = true;
   elements.searchEvent.disabled = true;
   try {
-    const year = await resolveWikidataYear(title);
+    const target = currentTargetYear();
+    const resolved = await resolveWikidataEntity(title);
+    if (!resolved) throw new Error("No Wikidata record.");
+    const canonicalTitle = resolved.title;
+    let personContext = "";
+    let year;
+    const eventSource = `https://en.wikipedia.org/wiki/${encodeURIComponent(canonicalTitle.replaceAll(" ", "_"))}`;
+    let evidenceSource = "";
+    if (itemIsHuman(resolved.entity)) {
+      const match = await targetYearPersonEvent(canonicalTitle, target);
+      if (!match) {
+        elements.feedback.textContent = `That person is not linked to an event on the ${target} year page. Try a specific event or another person.`;
+        elements.eventSearch.disabled = false;
+        elements.searchEvent.disabled = false;
+        return;
+      }
+      year = target;
+      personContext = match.context;
+      evidenceSource = `https://en.wikipedia.org/wiki/${target}`;
+    } else {
+      year = entityYears(resolved.entity.claims || {}).sort((a, b) => Math.abs(a - target) - Math.abs(b - target))[0];
+    }
     if (!Number.isFinite(year)) {
-      elements.feedback.textContent = "I couldn't find a reliable year for that article. Try a different result.";
+      elements.feedback.textContent = "I couldn't find a reliable event date for that article. Try another result.";
       elements.eventSearch.disabled = false;
       elements.searchEvent.disabled = false;
       return;
     }
-    const target = currentTargetYear();
     const distance = Math.abs(year - target);
-    const score = Math.max(0, 1000 - distance);
+    const bonus = await rarityBonus(canonicalTitle, resolved.entity);
+    const proximity = Math.max(0, 1000 - distance);
+    const score = Math.round(proximity * (0.9 + bonus / 1000));
+    const rarityPoints = score - Math.round(proximity * 0.9);
     state.plays += 1;
-    state.lastResult = { round: state.plays - 1, mode: "near", score, eventTitle: title, eventYear: year, targetYear: target, distance };
+    state.lastResult = { round: state.plays - 1, mode: "near", score, eventTitle: canonicalTitle, eventSource, evidenceSource, eventYear: year, targetYear: target, distance, rarityBonus: rarityPoints, personContext };
     persist();
     elements.answerPanel.replaceChildren();
     const label = document.createElement("span");
     label.className = "answer-title";
-    label.textContent = `${score} POINTS · ${distance} YEARS AWAY`;
+    label.textContent = `${score} POINTS · ${distance} YEARS AWAY · +${rarityPoints} RARITY`;
     const line = document.createElement("div");
-    line.append(answerLink({ title, year, source: `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replaceAll(" ", "_"))}` }), document.createTextNode(` happened in ${year}. Your year was ${target}.`));
+    line.append(answerLink({ title: canonicalTitle, year, source: eventSource }), document.createTextNode(personContext ? ` is named in a ${target} event: ${personContext} ` : ` is dated ${year}. Your year was ${target}.`));
+    if (evidenceSource) {
+      const evidence = document.createElement("a");
+      evidence.href = evidenceSource;
+      evidence.target = "_blank";
+      evidence.rel = "noreferrer";
+      evidence.textContent = `Source: ${target} events`;
+      line.append(evidence);
+    }
     elements.answerPanel.append(label, line);
     elements.answerPanel.hidden = false;
-    elements.feedback.textContent = "Event verified against Wikidata.";
+    elements.feedback.textContent = personContext ? "Person matched to a target-year event." : "Event date checked against Wikidata.";
     elements.feedback.className = "feedback positive";
     elements.scoreValue.firstChild.textContent = String(score);
     elements.scoreUnit.textContent = "/ 1000";
@@ -561,7 +646,7 @@ async function scoreSearchResult(title) {
     elements.eventSearch.disabled = true;
     updateStatus();
   } catch {
-    elements.feedback.textContent = "The event date could not be checked. Try another result.";
+    elements.feedback.textContent = "The answer could not be checked. Try another result.";
     elements.eventSearch.disabled = false;
     elements.searchEvent.disabled = false;
   }
@@ -574,11 +659,42 @@ function nextPlay() {
     return;
   }
   state.lastResult = null;
+  debugPreview = false;
   persist();
   elements.eventSearch.disabled = false;
   elements.searchEvent.disabled = false;
   elements.eventSearch.value = "";
   render();
+}
+
+async function shuffleCurrentRound() {
+  if (mode === "near") return;
+  const previousYear = debugPreview ? debugYear : baseYear;
+  const nextSeed = `${Date.now()}-${Math.random()}`;
+  elements.shuffleRound.disabled = true;
+  elements.feedback.textContent = mode === "random" ? "Loading a new random window…" : "Shuffling the themed round…";
+  if (mode === "random") {
+    let requestedYear = minYear + Math.floor(Math.random() * (maxYear - minYear + 1));
+    while (requestedYear === previousYear) requestedYear = minYear + Math.floor(Math.random() * (maxYear - minYear + 1));
+    try {
+      const events = await fetchAnnualWindow(requestedYear);
+      if (!selectWindowEvents(events, requestedYear, nextSeed)) throw new Error("No suitable events were found.");
+      debugPreview = true;
+      debugSeed = nextSeed;
+      debugYear = requestedYear;
+      debugEvents = events;
+      randomLoadError = false;
+    } catch {
+      elements.feedback.textContent = "Wikipedia could not load a new window. Try Shuffle again.";
+      elements.shuffleRound.disabled = false;
+      return;
+    }
+  } else {
+    debugPreview = true;
+    debugSeed = nextSeed;
+  }
+  render();
+  elements.shuffleRound.disabled = false;
 }
 
 function openPaywall() {
@@ -595,10 +711,14 @@ elements.orderMode.addEventListener("click", () => setMode("random"));
 elements.themeMode.addEventListener("click", () => setMode("theme"));
 elements.nearMode.addEventListener("click", () => setMode("near"));
 elements.checkOrder.addEventListener("click", submitOrder);
+elements.shuffleRound.addEventListener("click", shuffleCurrentRound);
 elements.nextPlay.addEventListener("click", nextPlay);
 elements.searchEvent.addEventListener("click", searchWikipedia);
 elements.eventSearch.addEventListener("keydown", event => {
-  if (event.key === "Enter") searchWikipedia();
+  if (event.key === "Enter") {
+    event.preventDefault();
+    searchWikipedia();
+  }
 });
 elements.closePaywall.addEventListener("click", closePaywall);
 elements.paywallDone.addEventListener("click", closePaywall);

@@ -12,7 +12,7 @@ At the start of each fixed eight-hour UTC edition, a deterministic random seed s
 
 The same edition and base year are shared between players. Each browser gets three rounds; the event selection changes between rounds. A countdown shows time until the next edition, when the base year and free-round counter roll over.
 
-The event source uses the annual article's Events section rather than sampling raw category membership. Year categories can contain broad topic pages, institutions, and other pages that are not individual event clues. The annual event lists provide dated entries directly. If the API is unavailable or the selected window has too few entries, the prototype falls back to the curated local bank and uses a feasible window from that bank.
+The event source uses the annual article's Events section rather than sampling raw category membership. Each displayed clue is the linked Wikipedia article title from a dated event entry. If the API is unavailable or a window has too few linked events, the random round shows a retry message instead of substituting themed examples. A temporary Shuffle control rerolls a random window or chooses another curated theme without using a daily play.
 
 ## Themed mode
 
@@ -20,7 +20,7 @@ The six curated timelines in `data/puzzles.js` are available in a separate mode.
 
 ## Name an event mode
 
-The player sees a target year from 15 through 2016, searches Wikipedia, and chooses an article. chroniclr resolves its linked Wikidata item and looks for a point-in-time date, inception, start date, publication date, or end date. Score is `max(0, 1000 − |event year − target year|)`. Results without a supported date are rejected. A future review should decide whether the date-property order and the one-point-per-year curve feel fair across different kinds of historical events.
+The player sees a target year from 15 through 2016 and enters an event or person through Wikipedia search. Event results need a Wikidata date; person results need a link from an event entry on the target year's annual article. Score is the date-proximity score plus up to 100 rarity points derived from recent Wikipedia page views, falling back to Wikidata sitelinks if page views are unavailable.
 
 ## Prototype boundaries
 
@@ -33,5 +33,5 @@ The player sees a target year from 15 through 2016, searches Wikipedia, and choo
 ## References
 
 - [MediaWiki API: Query](https://www.mediawiki.org/wiki/API:Query)
-- [MediaWiki Extension: TextExtracts](https://www.mediawiki.org/wiki/Extension:TextExtracts)
+- [MediaWiki API: Revisions](https://www.mediawiki.org/wiki/API:Revisions)
 - [Wikidata property P585: point in time](https://www.wikidata.org/wiki/Property:P585)
