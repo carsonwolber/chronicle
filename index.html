@@ -26,8 +26,8 @@
   <main class="page">
     <section class="game-shell" aria-label="chroniclr game">
       <div class="game-topline">
-        <div class="edition"><span class="edition-number" id="issueNumber">001</span><span class="edition-divider"></span><span id="editionLabel">THE EIGHT-HOUR EDITION</span></div>
-        <div class="play-count"><span id="playsLabel">3 ROUNDS AVAILABLE</span><span class="play-beads" id="playBeads" aria-hidden="true"><i></i><i></i><i></i></span></div>
+        <div class="edition"><span class="edition-number" id="issueNumber">001</span><span class="edition-divider"></span><span id="editionLabel"></span></div>
+        <div class="play-count"><span id="playsLabel"></span><span class="play-beads" id="playBeads" aria-hidden="true"><i></i><i></i><i></i></span></div>
       </div>
 
       <div class="mode-bar" role="tablist" aria-label="Game mode">
@@ -39,7 +39,7 @@
       <section class="game-panel" id="gamePanel" aria-live="polite">
         <div class="challenge-heading">
           <div>
-            <div class="eyebrow" id="challengeEyebrow">FIVE MOMENTS · ONE WINDOW</div>
+            <div class="eyebrow" id="challengeEyebrow"></div>
             <h1 id="challengeTitle">Set the record straight.</h1>
           </div>
           <div class="year-window" id="yearWindow" aria-label="Year range"><span id="windowStart">1993</span><span class="window-dash">—</span><span id="windowEnd">2007</span></div>
@@ -57,7 +57,7 @@
         <div class="answer-panel" id="answerPanel" hidden></div>
         <div class="feedback" id="feedback" role="status" aria-live="polite"></div>
         <div class="board-footer">
-          <div class="footnote"><span class="footnote-star" aria-hidden="true">✳</span><span id="footnoteText">Five moments drawn from the years around a random date.</span></div>
+          <div class="footnote" id="footnote" hidden><span class="footnote-star" aria-hidden="true">✳</span><span id="footnoteText"></span></div>
           <div class="board-actions"><button class="button button-secondary" id="nextPlay" type="button" disabled>NEXT ROUND</button><button class="button button-primary" id="checkOrder" type="button">LOCK IN ORDER</button></div>
         </div>
       </section>
@@ -74,11 +74,11 @@
           <span>UNLOCK UNLIMITED</span>
           <span class="unlimited-mark" aria-hidden="true">＋</span>
         </button>
-        <div class="source-note" id="sourceNote"><span class="source-dot" aria-hidden="true"></span><span>Events and years sourced from Wikipedia.</span></div>
+        <div class="source-note" id="sourceNote" hidden><span class="source-dot" aria-hidden="true"></span><span></span></div>
       </aside>
     </section>
 
-    <footer class="page-footer"><span>chroniclr <span>·</span> history, in order</span><span>AN OPEN CHRONICLE</span></footer>
+    <footer class="page-footer"><span>chroniclr <span>·</span> history, in order</span></footer>
   </main>
 
   <div class="modal-backdrop" id="paywall" hidden>
