@@ -25,11 +25,6 @@
 
   <main class="page">
     <section class="game-shell" aria-label="chroniclr game">
-      <div class="game-topline">
-        <div class="edition"><span class="edition-number" id="issueNumber">001</span><span class="edition-divider"></span><span id="editionLabel"></span></div>
-        <div class="play-count"><span id="playsLabel"></span><span class="play-beads" id="playBeads" aria-hidden="true"><i></i><i></i><i></i></span></div>
-      </div>
-
       <div class="mode-bar" role="tablist" aria-label="Game mode">
         <button class="mode-tab is-active" id="orderMode" type="button" role="tab" aria-selected="true" aria-controls="gamePanel">RANDOM WINDOW</button>
         <button class="mode-tab" id="themeMode" type="button" role="tab" aria-selected="false" aria-controls="gamePanel">THEMED</button>
@@ -37,10 +32,10 @@
       </div>
 
       <section class="game-panel" id="gamePanel" aria-live="polite">
-        <div class="challenge-heading">
+        <div class="challenge-heading" id="challengeHeading">
           <div>
-            <div class="eyebrow" id="challengeEyebrow"></div>
-            <h1 id="challengeTitle">Set the record straight.</h1>
+            <div class="eyebrow" id="challengeEyebrow">FIVE MOMENTS · ONE WINDOW</div>
+            <h1 id="challengeTitle"></h1>
           </div>
           <div class="year-window" id="yearWindow" aria-label="Year range"><span id="windowStart">1993</span><span class="window-dash">—</span><span id="windowEnd">2007</span></div>
         </div>
@@ -48,17 +43,17 @@
         <div class="prompt-line" id="promptLine"><span class="prompt-rule"></span><span>OLDEST TO NEWEST</span><span class="prompt-rule"></span></div>
         <ol class="event-list" id="eventList" aria-label="Events to order"></ol>
         <div class="event-entry" id="eventEntry" hidden>
-          <label for="eventSearch">Name a real event near <strong id="targetYear">2000</strong></label>
-          <div class="search-row"><input id="eventSearch" type="search" autocomplete="off" placeholder="e.g. the Mayflower voyage" maxlength="100"><button class="submit-search" id="searchEvent" type="button">SEARCH</button></div>
+          <div class="near-target"><span>YEAR</span><strong id="targetYear">2000</strong></div>
+          <label for="eventSearch">Enter an event or historical person connected to this year</label>
+          <div class="search-row"><textarea id="eventSearch" autocomplete="off" placeholder="e.g. George Washington" maxlength="100" rows="2"></textarea><button class="submit-search" id="searchEvent" type="button">CHECK ANSWER</button></div>
           <div class="search-results" id="searchResults" role="listbox" aria-label="Wikipedia results"></div>
-          <div class="score-explainer">Closer to the year earns more points. The year comes from the linked Wikipedia record.</div>
+          <div class="score-explainer">Closer dates score more. Less-viewed answers earn a rarity bonus.</div>
         </div>
 
         <div class="answer-panel" id="answerPanel" hidden></div>
         <div class="feedback" id="feedback" role="status" aria-live="polite"></div>
         <div class="board-footer">
-          <div class="footnote" id="footnote" hidden><span class="footnote-star" aria-hidden="true">✳</span><span id="footnoteText"></span></div>
-          <div class="board-actions"><button class="button button-secondary" id="nextPlay" type="button" disabled>NEXT ROUND</button><button class="button button-primary" id="checkOrder" type="button">LOCK IN ORDER</button></div>
+          <div class="board-actions"><button class="button button-secondary" id="shuffleRound" type="button">SHUFFLE</button><button class="button button-secondary" id="nextPlay" type="button" disabled>NEXT ROUND</button><button class="button button-primary" id="checkOrder" type="button">LOCK IN ORDER</button></div>
         </div>
       </section>
 
@@ -74,11 +69,10 @@
           <span>UNLOCK UNLIMITED</span>
           <span class="unlimited-mark" aria-hidden="true">＋</span>
         </button>
-        <div class="source-note" id="sourceNote" hidden><span class="source-dot" aria-hidden="true"></span><span></span></div>
       </aside>
     </section>
 
-    <footer class="page-footer"><span>chroniclr <span>·</span> history, in order</span></footer>
+    <footer class="page-footer"><span>chroniclr</span></footer>
   </main>
 
   <div class="modal-backdrop" id="paywall" hidden>
