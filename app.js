@@ -434,7 +434,7 @@ function render() {
     elements.scoreValue.firstChild.textContent = prior ? String(prior.score) : "—";
     elements.scoreUnit.textContent = "/ 1000";
     elements.progressFill.style.width = prior ? `${prior.score / 10}%` : "0%";
-    elements.progressCopy.textContent = prior ? prior.noEventMatch ? "No event match" : `${prior.distance} years from ${prior.targetYear}` : "Proximity + rarity";
+    elements.progressCopy.textContent = prior ? prior.noEventMatch ? "No nearby event" : `${prior.distance} years from ${prior.targetYear}` : "Proximity + rarity";
     if (prior) {
       const label = document.createElement("span");
       label.className = "answer-title";
@@ -452,7 +452,7 @@ function render() {
       }
       elements.answerPanel.append(label, line);
       elements.answerPanel.hidden = false;
-      elements.feedback.textContent = prior.noEventMatch ? "No event match; 0 points." : prior.personContext ? "Person matched to an event on the target year page." : "Event date checked against Wikidata.";
+      elements.feedback.textContent = prior.noEventMatch ? "No nearby dated event match; 0 points." : prior.associatedEventTitle ? "Person matched to a dated event." : "Event date checked against Wikidata.";
       elements.feedback.className = prior.noEventMatch ? "feedback negative" : "feedback positive";
       elements.eventSearch.disabled = true;
       elements.searchEvent.disabled = true;
@@ -690,26 +690,26 @@ async function scoreSearchResult(title) {
     elements.answerPanel.replaceChildren();
     const label = document.createElement("span");
     label.className = "answer-title";
-    label.textContent = noEventMatch ? "0 POINTS · NO EVENT MATCH" : `${score} POINTS · ${distance} YEARS AWAY · +${rarityPoints} RARITY`;
+    label.textContent = noEventMatch ? "0 POINTS · NO NEARBY EVENT" : `${score} POINTS · ${distance} YEARS AWAY · +${rarityPoints} RARITY`;
     const line = document.createElement("div");
-    const resultText = noEventMatch ? ` was not named in an event on the ${target} year page.` : personContext ? ` is named in a ${target} event: ${personContext} ` : ` is dated ${year}. Your year was ${target}.`;
+    const resultText = noEventMatch ? ` has no dated linked event within ${maxPersonEventDistance} years of ${target}.` : associatedEventTitle ? ` is associated with ${associatedEventTitle} (${year}). Your year was ${target}.` : ` is dated ${year}. Your year was ${target}.`;
     line.append(answerLink({ title: canonicalTitle, year, source: eventSource }), document.createTextNode(resultText));
     if (evidenceSource) {
       const evidence = document.createElement("a");
       evidence.href = evidenceSource;
       evidence.target = "_blank";
       evidence.rel = "noreferrer";
-      evidence.textContent = `Source: ${target} events`;
+      evidence.textContent = `Source: ${associatedEventTitle || target + " events"}`;
       line.append(evidence);
     }
     elements.answerPanel.append(label, line);
     elements.answerPanel.hidden = false;
-    elements.feedback.textContent = noEventMatch ? "No event match; 0 points." : personContext ? "Person matched to a target-year event." : "Event date checked against Wikidata.";
+    elements.feedback.textContent = noEventMatch ? "No nearby dated event match; 0 points." : associatedEventTitle ? "Person matched to a dated event." : "Event date checked against Wikidata.";
     elements.feedback.className = noEventMatch ? "feedback negative" : "feedback positive";
     elements.scoreValue.firstChild.textContent = String(score);
     elements.scoreUnit.textContent = "/ 1000";
     elements.progressFill.style.width = `${score / 10}%`;
-    elements.progressCopy.textContent = noEventMatch ? "No event match" : `${distance} years from ${target}`;
+    elements.progressCopy.textContent = noEventMatch ? "No nearby event" : `${distance} years from ${target}`;
     elements.searchEvent.disabled = true;
     elements.eventSearch.disabled = true;
     updateStatus();
