@@ -8,7 +8,7 @@ chroniclr is a history game about dates and perspective. The default round draws
 - **Themed:** play a curated timeline from the local question bank in `data/puzzles.js`.
 - **Name an event:** enter an event or a person named in an event on the target year's Wikipedia page. Event dates are checked through Wikidata; accepted people are matched to that year's event list. Closer dates score more, with up to 100 rarity points based on recent Wikipedia page views.
 
-Each browser gets three rounds in each fixed eight-hour UTC block. The edition and random year are shared across players. The timer counts down to the next block. Progress is stored in browser local storage.
+The edition and random year are shared across players in each fixed eight-hour UTC block. The timer counts down to the next block. Progress is stored in browser local storage.
 
 ## Wikipedia data
 
@@ -28,4 +28,4 @@ python3 -m http.server 8000
 
 The GitHub Actions workflow in `.github/workflows/pages.yml` packages the static app and deploys it to GitHub Pages when pushed to `main`.
 
-The app is a static prototype. It has no accounts, payments, subscription handling, or server-side answer protection. Round limits and answers are stored in or shipped to the browser.
+The app is a static prototype. It has no accounts, payments, subscription handling, or server-side answer protection. Answers are stored in or shipped to the browser.
