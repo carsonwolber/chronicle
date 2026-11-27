@@ -90,16 +90,6 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 .feedback.positive { color: var(--green); }
 .feedback.negative { color: var(--red); }
 
-
-
-
-
-
-
-
-
-
-
 .event-entry { margin: 25px 0 4px; }
 .event-entry[hidden] { display: none; }
 .event-entry label { display: block; margin-bottom: 12px; color: var(--muted); font: 14px var(--serif); }
@@ -124,7 +114,6 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 
 @media (max-width: 900px) {
 
-
   .game-panel { padding: 28px 23px; }
   .event-row { grid-template-columns: 42px minmax(0, 1fr) 36px; gap: 12px; }
 }
@@ -138,8 +127,6 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
   .game-shell { padding-top: 22px; }
   .game-topline, .mode-bar { grid-column: 1; }
   .game-panel { grid-column: 1; padding: 24px 18px; }
-
-
 
   .challenge-heading { align-items: flex-start; }
   .challenge-heading h1 { font-size: clamp(34px, 9vw, 47px); }
@@ -172,7 +159,6 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
   .position { width: 29px; height: 29px; }
   .event-title { font-size: 15px; }
   .drag-handle { width: 29px; }
-
 
 }
 
