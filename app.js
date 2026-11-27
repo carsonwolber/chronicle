@@ -3,10 +3,12 @@ const minYear = 15;
 const maxYear = 2016;
 const maxPersonEventDistance = 25;
 const slot = Math.floor(Date.now() / windowLength);
+const closerStateKey = "chroniclr:closer";
+const closerSavedState = JSON.parse(localStorage.getItem(closerStateKey) || "null");
 const stateKey = `chroniclr:${slot}`;
 const windowCacheKey = `chroniclr:window:v2:${slot}`;
 const state = JSON.parse(localStorage.getItem(stateKey) || "null") || { plays: 0, lastResult: null };
-const elements = Object.fromEntries(["resetTimer", "orderMode", "themeMode", "nearMode", "gamePanel", "challengeHeading", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "nextPlay", "checkOrder", "shuffleRound", "resultDialog", "resultScore", "resultGrid", "shareResult", "copyResult", "shareX", "shareWhatsApp", "closeResultDialog", "shareFeedback"].map(id => [id, document.getElementById(id)]));
+const elements = Object.fromEntries(["resetTimer", "orderMode", "themeMode", "nearMode", "closerMode", "gamePanel", "compareBoard", "comparePrompt", "compareYear", "compareOptions", "closerScore", "closerBest", "resultEyebrow", "challengeHeading", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "nextPlay", "checkOrder", "shuffleRound", "resultDialog", "resultScore", "resultGrid", "shareResult", "copyResult", "shareX", "shareWhatsApp", "closeResultDialog", "shareFeedback"].map(id => [id, document.getElementById(id)]));
 let mode = localStorage.getItem("chroniclr:mode") || "random";
 let baseYear = minYear;
 let windowEvents = [];
@@ -26,6 +28,10 @@ let shareText = "";
 let shareUrl = "";
 let themeLoadKey = "";
 let themeRequestId = 0;
+let closerState = closerSavedState && Number.isInteger(closerSavedState.score) ? closerSavedState : { score: 0, best: 0, round: null, gameOver: false };
+let closerLoading = false;
+let closerLoadError = false;
+let closerLoadId = 0;
 
 function seededRandom(seed) {
   let value = seed >>> 0;
@@ -110,6 +116,69 @@ async function fetchYearEvents(year) {
   const page = data.query?.pages?.[0];
   const content = page?.revisions?.[0]?.slots?.main?.content || page?.revisions?.[0]?.slots?.main?.["*"] || "";
   return page ? annualWindowEvents(year, extractEventsSection(content)) : [];
+}
+
+async function fetchAnnualRange(startYear, endYear) {
+  const years = Array.from({ length: endYear - startYear + 1 }, (_, index) => startYear + index);
+  const pages = [];
+  for (let index = 0; index < years.length; index += 50) {
+    const batch = years.slice(index, index + 50);
+    const params = new URLSearchParams({ action: "query", prop: "revisions", titles: batch.join("|"), redirects: "1", rvprop: "content", rvslots: "main", format: "json", formatversion: "2", origin: "*" });
+    const response = await fetch("https://en.wikipedia.org/w/api.php?" + params, { headers: { Accept: "application/json" } });
+    if (!response.ok) throw new Error("Wikipedia event pages could not be reached.");
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.info || "Wikipedia event pages could not be reached.");
+    pages.push(...(data.query?.pages || []));
+  }
+  return pages.flatMap(page => {
+    const year = Number(page.title);
+    const content = page.revisions?.[0]?.slots?.main?.content || page.revisions?.[0]?.slots?.main?.["*"] || "";
+    return Number.isInteger(year) ? annualWindowEvents(year, extractEventsSection(content)) : [];
+  });
+}
+
+function selectCloserPair(events, targetYear, seed) {
+  const eventsByDistance = new Map();
+  for (const event of events) {
+    const distance = Math.abs(event.year - targetYear);
+    if (distance > 25) continue;
+    if (!eventsByDistance.has(distance)) eventsByDistance.set(distance, []);
+    eventsByDistance.get(distance).push(event);
+  }
+  const random = seededRandom(hashSeed(seed));
+  const distances = shuffle([...eventsByDistance.keys()], random);
+  if (distances.length < 2) return null;
+  const firstDistance = distances[0];
+  const secondDistance = distances[1];
+  const firstEvents = shuffle(eventsByDistance.get(firstDistance), random);
+  const secondEvents = shuffle(eventsByDistance.get(secondDistance), random);
+  const first = firstEvents[0];
+  const second = secondEvents.find(event => event.title !== first.title);
+  if (!first || !second) return null;
+  const pair = [first, second];
+  return { targetYear, events: pair, correctIndex: firstDistance < secondDistance ? 0 : 1 };
+}
+
+async function generateCloserRound() {
+  let lastError = null;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const targetYear = minYear + Math.floor(Math.random() * (maxYear - minYear + 1));
+    const startYear = Math.max(minYear, targetYear - 25);
+    const endYear = Math.min(maxYear, targetYear + 25);
+    try {
+      const events = await fetchAnnualRange(startYear, endYear);
+      const round = selectCloserPair(events, targetYear, Date.now() + ":" + attempt);
+      if (round) return round;
+    } catch (error) {
+      lastError = error;
+      break;
+    }
+  }
+  throw lastError || new Error("Wikipedia did not return two comparable events.");
+}
+
+function persistCloserState() {
+  localStorage.setItem(closerStateKey, JSON.stringify(closerState));
 }
 
 function selectThemeEvents(events, random) {
@@ -255,12 +324,19 @@ function updateClock() {
 
 function updateStatus() {
   const currentResult = state.lastResult && state.lastResult.round === state.plays - 1 && state.lastResult.mode === mode;
-  elements.nextPlay.disabled = !state.lastResult;
-  elements.nextPlay.textContent = "NEXT ROUND";
-  elements.checkOrder.disabled = locked || (mode === "theme" && currentPack?.events?.length !== 5);
+  if (mode === "closer") {
+    elements.nextPlay.hidden = !closerState.gameOver && !closerLoadError;
+    elements.nextPlay.disabled = closerLoading;
+    elements.nextPlay.textContent = closerState.gameOver ? "PLAY AGAIN" : "TRY AGAIN";
+  } else {
+    elements.nextPlay.hidden = false;
+    elements.nextPlay.disabled = !state.lastResult;
+    elements.nextPlay.textContent = "NEXT ROUND";
+  }
+  elements.checkOrder.disabled = locked || mode === "closer" || (mode === "theme" && currentPack?.events?.length !== 5);
   elements.eventSearch.disabled = mode === "near" && currentResult;
   elements.searchEvent.disabled = mode === "near" && currentResult;
-  elements.shuffleRound.hidden = mode === "near";
+  elements.shuffleRound.hidden = mode === "near" || mode === "closer";
 }
 
 function setupRandomRound(roundNumber) {
@@ -321,13 +397,14 @@ function setupThemeRound(roundNumber) {
 function updateYearLabels() {
   const dash = elements.yearWindow.querySelector(".window-dash");
   const target = mode === "near" ? currentTargetYear() : null;
+  const closerTarget = mode === "closer" ? closerState.round?.targetYear : null;
   const activeBaseYear = debugPreview && mode === "random" ? debugYear : baseYear;
   const themeYears = mode === "theme" ? currentPack?.events?.map(event => event.year) || [] : [];
-  const years = mode === "near" ? [target] : mode === "theme" ? themeYears : [activeBaseYear - 7, activeBaseYear + 7];
+  const years = (mode === "near" ? [target] : mode === "closer" ? [closerTarget] : mode === "theme" ? themeYears : [activeBaseYear - 7, activeBaseYear + 7]).filter(Number.isFinite);
   elements.windowStart.textContent = years.length ? Math.min(...years) : "";
   elements.windowEnd.textContent = years.length ? Math.max(...years) : "";
-  dash.hidden = mode === "near";
-  elements.windowEnd.hidden = mode === "near";
+  dash.hidden = mode === "near" || mode === "closer";
+  elements.windowEnd.hidden = mode === "near" || mode === "closer";
   elements.yearWindow.hidden = mode === "theme" && !years.length;
   elements.yearWindow.setAttribute("aria-label", years.length ? "Year range " + Math.min(...years) + " to " + Math.max(...years) : "Wikipedia theme loading");
   elements.targetYear.textContent = target || currentTargetYear();
@@ -335,6 +412,10 @@ function updateYearLabels() {
 
 function setMode(nextMode) {
   if (mode !== nextMode && nextMode === "near") elements.eventSearch.value = "";
+  if (mode === "closer" && nextMode !== "closer") {
+    closerLoadId += 1;
+    closerLoading = false;
+  }
   if (mode !== nextMode) {
     themeLoadKey = "";
     themeRequestId += 1;
@@ -345,9 +426,11 @@ function setMode(nextMode) {
   elements.orderMode.classList.toggle("is-active", mode === "random");
   elements.themeMode.classList.toggle("is-active", mode === "theme");
   elements.nearMode.classList.toggle("is-active", mode === "near");
+  elements.closerMode.classList.toggle("is-active", mode === "closer");
   elements.orderMode.setAttribute("aria-selected", String(mode === "random"));
   elements.themeMode.setAttribute("aria-selected", String(mode === "theme"));
   elements.nearMode.setAttribute("aria-selected", String(mode === "near"));
+  elements.closerMode.setAttribute("aria-selected", String(mode === "closer"));
   render();
 }
 
@@ -515,6 +598,8 @@ function showOrderAnswer(score) {
 }
 
 function showRandomResult(score) {
+  elements.resultEyebrow.textContent = "RANDOM WINDOW";
+  elements.resultDialogTitle.textContent = "Round complete";
   const squares = order.map((eventIndex, position) => eventIndex === currentCorrectOrder[position] ? "🟩" : "⬛").join("");
   const url = new URL(window.location.href);
   url.search = "";
@@ -564,6 +649,131 @@ async function shareRandomResult() {
   }
 }
 
+function showCloserResult() {
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  shareText = `chroniclr · Closer\n${closerState.score} correct in a row\nBest: ${closerState.best}`;
+  shareUrl = url.toString();
+  shareMessage = `${shareText}\n${shareUrl}`;
+  elements.resultEyebrow.textContent = "CLOSER";
+  elements.resultDialogTitle.textContent = "Run over";
+  elements.resultScore.textContent = String(closerState.score);
+  elements.resultGrid.textContent = `${closerState.score} CORRECT IN A ROW · BEST ${closerState.best}`;
+  elements.resultGrid.setAttribute("aria-label", `${closerState.score} correct in a row. Best score: ${closerState.best}.`);
+  elements.shareFeedback.textContent = "";
+  elements.shareX.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
+  elements.shareWhatsApp.href = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`;
+  if (!elements.resultDialog.open) elements.resultDialog.showModal();
+}
+
+function answerCloser(index) {
+  if (mode !== "closer" || closerState.gameOver || closerLoading || !closerState.round) return;
+  const round = closerState.round;
+  if (index === round.correctIndex) {
+    closerState.score += 1;
+    closerState.best = Math.max(closerState.best || 0, closerState.score);
+    closerState.round = null;
+    closerLoadError = false;
+    persistCloserState();
+    render();
+    return;
+  }
+  closerState.gameOver = true;
+  round.selectedIndex = index;
+  persistCloserState();
+  render();
+}
+
+async function prepareCloserRound() {
+  if (closerLoading || closerState.gameOver) return;
+  const requestId = ++closerLoadId;
+  closerLoading = true;
+  elements.comparePrompt.textContent = "Finding events…";
+  elements.feedback.textContent = "";
+  updateStatus();
+  try {
+    const round = await generateCloserRound();
+    if (requestId !== closerLoadId || mode !== "closer") return;
+    closerState.round = round;
+    closerLoadError = false;
+    persistCloserState();
+    closerLoading = false;
+    render();
+  } catch {
+    if (requestId !== closerLoadId || mode !== "closer") return;
+    closerLoading = false;
+    closerLoadError = true;
+    elements.comparePrompt.textContent = "Could not load a pair of events.";
+    elements.feedback.textContent = "Try again.";
+    updateStatus();
+  }
+}
+
+function renderCloserBoard() {
+  elements.closerScore.textContent = String(closerState.score);
+  elements.closerBest.textContent = String(closerState.best || 0);
+  elements.compareOptions.replaceChildren();
+  const round = closerState.round;
+  if (closerState.gameOver && round) {
+    elements.comparePrompt.textContent = "Which happened closer?";
+    round.events.forEach((event, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "compare-card";
+      button.disabled = true;
+      button.classList.add(index === round.correctIndex ? "is-correct" : index === round.selectedIndex ? "is-selected" : "is-revealed");
+      const title = document.createElement("span");
+      title.className = "compare-title";
+      title.textContent = event.title;
+      const year = document.createElement("span");
+      year.className = "compare-event-year";
+      year.textContent = String(event.year);
+      button.append(title, year);
+      elements.compareOptions.append(button);
+    });
+    const correct = round.events[round.correctIndex];
+    elements.feedback.textContent = `The closer event was ${correct.title} (${correct.year}).`;
+    elements.feedback.className = "feedback negative";
+    showCloserResult();
+    return;
+  }
+  if (!round) {
+    if (closerLoadError) {
+      elements.comparePrompt.textContent = "Could not load a pair of events.";
+      return;
+    }
+    elements.comparePrompt.textContent = closerLoading ? "Finding events…" : "Loading…";
+    if (!closerLoading) prepareCloserRound();
+    return;
+  }
+  elements.comparePrompt.textContent = "Which happened closer to this year?";
+  round.events.forEach((event, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "compare-card";
+    button.disabled = closerLoading;
+    button.setAttribute("aria-label", event.title);
+    const title = document.createElement("span");
+    title.className = "compare-title";
+    title.textContent = event.title;
+    button.append(title);
+    button.addEventListener("click", () => answerCloser(index));
+    elements.compareOptions.append(button);
+  });
+}
+
+function startCloserRun() {
+  closerLoadId += 1;
+  closerLoading = false;
+  closerLoadError = false;
+  closerState.score = 0;
+  closerState.round = null;
+  closerState.gameOver = false;
+  persistCloserState();
+  render();
+}
+
 function submitOrder() {
   if (locked || mode === "near") return;
   locked = true;
@@ -599,17 +809,19 @@ function render() {
   locked = false;
   keyboardGrabbedId = null;
   elements.gamePanel?.classList.toggle("is-near", mode === "near");
+  elements.gamePanel?.classList.toggle("is-closer", mode === "closer");
   elements.feedback.textContent = "";
   elements.feedback.className = "feedback";
   elements.answerPanel.replaceChildren();
   elements.answerPanel.hidden = true;
   elements.searchResults.replaceChildren();
   elements.eventEntry.hidden = mode !== "near";
-  elements.eventList.hidden = mode === "near";
-  elements.promptLine.hidden = mode === "near";
-  elements.checkOrder.hidden = mode === "near";
-  elements.challengeEyebrow.textContent = mode === "random" ? "RANDOM WINDOW" : mode === "theme" ? "THEMED" : "";
-  elements.challengeTitle.textContent = mode === "random" ? "" : mode === "theme" ? "" : "";
+  elements.compareBoard.hidden = mode !== "closer";
+  elements.eventList.hidden = mode === "near" || mode === "closer";
+  elements.promptLine.hidden = mode === "near" || mode === "closer";
+  elements.checkOrder.hidden = mode === "near" || mode === "closer";
+  elements.challengeEyebrow.textContent = mode === "random" ? "RANDOM WINDOW" : mode === "theme" ? "THEMED" : mode === "closer" ? "CLOSER" : "";
+  elements.challengeTitle.textContent = mode === "closer" ? "Which happened closer?" : "";
   if (mode === "near") {
     currentPack = null;
     order = [];
@@ -642,6 +854,13 @@ function render() {
       elements.searchEvent.disabled = false;
     }
     elements.checkOrder.disabled = true;
+    updateStatus();
+    return;
+  }
+  if (mode === "closer") {
+    elements.challengeHeading.hidden = false;
+    updateYearLabels();
+    renderCloserBoard();
     updateStatus();
     return;
   }
@@ -890,6 +1109,17 @@ async function scoreSearchResult(title) {
 }
 
 function nextPlay() {
+  if (mode === "closer") {
+    if (closerState.gameOver) {
+      closerState.score = 0;
+      closerState.gameOver = false;
+      closerState.round = null;
+    }
+    closerLoadError = false;
+    persistCloserState();
+    render();
+    return;
+  }
   if (!state.lastResult) return;
   state.lastResult = null;
   debugPreview = false;
@@ -933,6 +1163,7 @@ async function shuffleCurrentRound() {
 elements.orderMode.addEventListener("click", () => setMode("random"));
 elements.themeMode.addEventListener("click", () => setMode("theme"));
 elements.nearMode.addEventListener("click", () => setMode("near"));
+elements.closerMode.addEventListener("click", () => setMode("closer"));
 elements.shareResult.addEventListener("click", shareRandomResult);
 elements.copyResult.addEventListener("click", copyRandomResult);
 elements.closeResultDialog.addEventListener("click", () => elements.resultDialog.close());
