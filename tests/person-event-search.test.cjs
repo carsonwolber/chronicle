@@ -10,7 +10,7 @@ test("finds Charlemagne in the 801 events list", async () => {
     maxDistance: 25,
     searchYear: async query => {
       queries.push(query);
-      assert.equal(query, 'intitle:801 linksto:"Charlemagne"');
+      assert.equal(query, 'intitle:801 linksto:Charlemagne');
       return [{ title: "801" }];
     },
     fetchYearEvents: async year => {
@@ -24,7 +24,7 @@ test("finds Charlemagne in the 801 events list", async () => {
     }
   });
 
-  assert.deepEqual(queries, ['intitle:801 linksto:"Charlemagne"']);
+  assert.deepEqual(queries, ['intitle:801 linksto:Charlemagne']);
   assert.deepEqual(result, {
     year: 801,
     title: "Charlemagne formally cedes Nordalbian territory",
