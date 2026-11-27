@@ -1,4 +1,4 @@
-window.chroniclePuzzles = [
+window.chroniclrThemePacks = [
   {
     theme: "Space race",
     title: "Race to the Moon",
