@@ -961,51 +961,22 @@ function normalizedTitle(title) {
   return title.replaceAll("_", " ").trim().toLocaleLowerCase();
 }
 
-async function searchPersonYearPages(title, targetYear) {
-  const years = [];
-  for (let distance = 0; distance <= maxPersonEventDistance; distance += 1) {
-    for (const year of distance === 0 ? [targetYear] : [targetYear - distance, targetYear + distance]) {
-      if (year >= minYear && year <= maxYear) years.push(year);
-    }
-  }
-  const queryTitle = title.replaceAll("\"", " ").trim();
-  const yearQuery = years.join(" OR ");
-  const url = wikimediaUrl("https://en.wikipedia.org/w/api.php", { action: "query", list: "search", srsearch: "linksto:\"" + queryTitle + "\" intitle:(" + yearQuery + ")", srlimit: "500", formatversion: "2" });
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!response.ok) throw new Error("Wikipedia event search is unavailable.");
-  const data = await response.json();
-  if (data.error) throw new Error(data.error.info || "Wikipedia event search is unavailable.");
-  const yearPattern = /^(\d{1,4})(?:$|\s|[–—-])/;
-  return (data.query?.search || [])
-    .flatMap(page => {
-      const match = page.title.match(yearPattern);
-      const year = match ? Number(match[1]) : null;
-      if (!years.includes(year)) return [];
-      return [{
-        year,
-        distance: Math.abs(year - targetYear),
-        title: page.title,
-        source: "https://en.wikipedia.org/wiki/" + encodeURIComponent(page.title.replaceAll(" ", "_")),
-        isYearPage: page.title === String(year)
-      }];
-    })
-    .sort((a, b) => a.distance - b.distance || Number(b.isYearPage) - Number(a.isYearPage) || a.title.length - b.title.length);
-}
-
 async function nearestPersonEvent(title, targetYear) {
-  const candidates = await searchPersonYearPages(title, targetYear);
-  for (const candidate of candidates) {
-    if (candidate.isYearPage) {
-      const events = await fetchYearEvents(candidate.year);
-      const match = events.find(event => event.linkedTitles?.some(linkedTitle => normalizedTitle(linkedTitle) === normalizedTitle(title)));
-      if (!match) continue;
-      return { year: candidate.year, title: match.title, context: match.context, source: "https://en.wikipedia.org/wiki/" + candidate.year };
-    }
-    return { year: candidate.year, title: candidate.title, context: "", source: candidate.source };
-  }
-  return null;
+  return personEventSearch.nearestPersonEvent(title, targetYear, {
+    minYear,
+    maxYear,
+    maxDistance: maxPersonEventDistance,
+    searchYear: async query => {
+      const url = wikimediaUrl("https://en.wikipedia.org/w/api.php", { action: "query", list: "search", srsearch: query, srlimit: "500", formatversion: "2" });
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error("Wikipedia event search is unavailable.");
+      const data = await response.json();
+      if (data.error) throw new Error(data.error.info || "Wikipedia event search is unavailable.");
+      return data.query?.search || [];
+    },
+    fetchYearEvents
+  });
 }
-
 async function rarityBonus(title, entity) {
   const date = new Date();
   date.setUTCDate(date.getUTCDate() - 1);
