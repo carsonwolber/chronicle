@@ -5,7 +5,7 @@
 })(typeof globalThis === "object" ? globalThis : this, function () {
   function buildPersonYearSearchQuery(title, year) {
     const queryTitle = String(title).replaceAll('"', " ").trim();
-    const linkedTitle = /\\s/.test(queryTitle) ? `"${queryTitle}"` : queryTitle;
+    const linkedTitle = /\s/.test(queryTitle) ? `"${queryTitle}"` : queryTitle;
     return `intitle:${year} linksto:${linkedTitle}`;
   }
 
