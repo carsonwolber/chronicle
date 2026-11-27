@@ -201,6 +201,11 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 
 .compare-board { margin-top: 12px; }
 .compare-score { display: flex; align-items: baseline; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid var(--line); color: var(--muted); font: 9px var(--mono); letter-spacing: .1em; }
+.year-window[hidden] { display: none; }
+.closer-target { display: grid; justify-items: center; gap: 8px; margin: 28px 0 33px; text-align: center; }
+.closer-target-label { color: var(--muted); font: 10px var(--mono); letter-spacing: .18em; }
+.closer-target-year { color: var(--brass-bright); font: 500 clamp(58px, 12vw, 104px)/.9 var(--serif); font-variant-numeric: tabular-nums; letter-spacing: -.045em; }
+
 .compare-score strong { margin-left: 8px; color: var(--brass-bright); font-size: 16px; font-weight: 400; }
 .compare-prompt { margin: 27px 0 17px; color: var(--muted); font: 16px var(--serif); }
 .compare-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
