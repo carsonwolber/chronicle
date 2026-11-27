@@ -247,7 +247,7 @@ function drawRows() {
     badge.textContent = String(position + 1).padStart(2, "0");
     const title = document.createElement("span");
     title.className = "event-title";
-    title.textContent = event.title;
+    title.textContent = event.context || event.title;
     row.append(badge, title);
     if (locked) {
       const year = document.createElement("span");
