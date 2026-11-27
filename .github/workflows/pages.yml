@@ -30,6 +30,7 @@ jobs:
           mkdir -p _site/data
           cp index.html styles.css app.js favicon.svg _site/
           cp person-event-search.js _site/
+          cp article-quality.js _site/
           cp data/puzzles.js _site/data/
       - name: Upload site
         uses: actions/upload-pages-artifact@v4
