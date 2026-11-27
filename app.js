@@ -7,7 +7,7 @@ const stateKey = `chroniclr:${slot}`;
 const windowCacheKey = `chroniclr:window:v2:${slot}`;
 const packs = window.chroniclrThemePacks;
 const state = JSON.parse(localStorage.getItem(stateKey) || "null") || { plays: 0, lastResult: null };
-const elements = Object.fromEntries(["resetTimer", "orderMode", "themeMode", "nearMode", "gamePanel", "challengeHeading", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "nextPlay", "checkOrder", "shuffleRound", "roundIndex", "scoreValue", "scoreUnit", "progressFill", "progressCopy"].map(id => [id, document.getElementById(id)]));
+const elements = Object.fromEntries(["resetTimer", "orderMode", "themeMode", "nearMode", "gamePanel", "challengeHeading", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "nextPlay", "checkOrder", "shuffleRound"].map(id => [id, document.getElementById(id)]));
 let mode = localStorage.getItem("chroniclr:mode") || "random";
 let baseYear = minYear;
 let windowEvents = [];
@@ -177,7 +177,6 @@ function updateClock() {
 
 function updateStatus() {
   const currentResult = state.lastResult && state.lastResult.round === state.plays - 1 && state.lastResult.mode === mode;
-  elements.roundIndex.textContent = String(state.plays + 1).padStart(2, "0");
   elements.nextPlay.disabled = !state.lastResult;
   elements.nextPlay.textContent = "NEXT ROUND";
   elements.checkOrder.disabled = locked;
@@ -374,10 +373,6 @@ function showOrderAnswer(score) {
   elements.answerPanel.hidden = false;
   elements.feedback.textContent = `${score} of 5 in the right position.`;
   elements.feedback.className = `feedback ${score === 5 ? "positive" : "negative"}`;
-  elements.scoreValue.firstChild.textContent = String(score);
-  elements.scoreUnit.textContent = "/ 5";
-  elements.progressFill.style.width = `${score * 20}%`;
-  elements.progressCopy.textContent = "Correct positions";
 }
 
 function submitOrder() {
@@ -430,10 +425,6 @@ function render() {
     elements.challengeHeading.hidden = true;
     updateYearLabels();
     const prior = state.lastResult && state.lastResult.round === state.plays - 1 && state.lastResult.mode === "near" ? state.lastResult : null;
-    elements.scoreValue.firstChild.textContent = prior ? String(prior.score) : "—";
-    elements.scoreUnit.textContent = "/ 1000";
-    elements.progressFill.style.width = prior ? `${prior.score / 10}%` : "0%";
-    elements.progressCopy.textContent = prior ? prior.noEventMatch ? "No nearby event" : `${prior.distance} years from ${prior.targetYear}` : "Proximity + rarity";
     if (prior) {
       const label = document.createElement("span");
       label.className = "answer-title";
@@ -475,10 +466,6 @@ function render() {
   currentCorrectOrder = [...currentPack.events].sort((a, b) => a.year - b.year).map(event => currentPack.events.indexOf(event));
   if (!showPriorResult()) {
     drawRows();
-    elements.scoreValue.firstChild.textContent = "—";
-    elements.scoreUnit.textContent = "/ 5";
-    elements.progressFill.style.width = "0%";
-    elements.progressCopy.textContent = "Correct positions";
   }
   if (mode === "random" && !currentPack.events.length) elements.feedback.textContent = randomLoadError ? "Wikipedia could not load this random window. Use Shuffle to try another." : "No linked event pages were found in this window. Use Shuffle to try another.";
   updateStatus();
@@ -700,10 +687,6 @@ async function scoreSearchResult(title) {
     elements.answerPanel.hidden = false;
     elements.feedback.textContent = noEventMatch ? "No nearby dated event match; 0 points." : associatedEventTitle ? "Person matched to a dated event." : "Event date checked against Wikidata.";
     elements.feedback.className = noEventMatch ? "feedback negative" : "feedback positive";
-    elements.scoreValue.firstChild.textContent = String(score);
-    elements.scoreUnit.textContent = "/ 1000";
-    elements.progressFill.style.width = `${score / 10}%`;
-    elements.progressCopy.textContent = noEventMatch ? "No nearby event" : `${distance} years from ${target}`;
     elements.searchEvent.disabled = true;
     elements.eventSearch.disabled = true;
     updateStatus();
