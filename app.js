@@ -1,6 +1,7 @@
 const windowLength = 8 * 60 * 60 * 1000;
 const minYear = 15;
 const maxYear = 2016;
+const maxPersonEventDistance = 25;
 const slot = Math.floor(Date.now() / windowLength);
 const stateKey = `chroniclr:${slot}`;
 const windowCacheKey = `chroniclr:window:v2:${slot}`;
@@ -73,28 +74,38 @@ function annualWindowEvents(year, wikitext) {
   return [...new Map(results.map(event => [event.title, event])).values()].slice(0, 100);
 }
 
+function extractEventsSection(wikitext) {
+  const lines = wikitext.split(/\n/);
+  const start = lines.findIndex(line => /^==\s*Events\s*==$/.test(line.trim()));
+  if (start < 0) return "";
+  const end = lines.findIndex((line, index) => index > start && /^==[^=].*==$/.test(line.trim()));
+  return lines.slice(start + 1, end < 0 ? undefined : end).join("\n");
+}
+
 async function fetchAnnualWindow(centerYear) {
   const years = Array.from({ length: 15 }, (_, index) => centerYear - 7 + index);
-  const params = new URLSearchParams({ action: "query", prop: "revisions", titles: years.join("|"), redirects: "1", rvprop: "content", rvsection: "1", rvslots: "main", format: "json", formatversion: "2", origin: "*" });
-  const response = await fetch(`https://en.wikipedia.org/w/api.php?${params}`, { headers: { Accept: "application/json" } });
+  const params = new URLSearchParams({ action: "query", prop: "revisions", titles: years.join("|"), redirects: "1", rvprop: "content", rvslots: "main", format: "json", formatversion: "2", origin: "*" });
+  const response = await fetch("https://en.wikipedia.org/w/api.php?" + params, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error("Wikipedia could not be reached.");
   const data = await response.json();
+  if (data.error) throw new Error(data.error.info || "Wikipedia could not be reached.");
   const pages = data.query?.pages || [];
   return pages.flatMap(page => {
     const year = Number(page.title);
     const content = page.revisions?.[0]?.slots?.main?.content || page.revisions?.[0]?.slots?.main?.["*"] || "";
-    return Number.isInteger(year) ? annualWindowEvents(year, content) : [];
+    return Number.isInteger(year) ? annualWindowEvents(year, extractEventsSection(content)) : [];
   });
 }
 
 async function fetchYearEvents(year) {
-  const params = new URLSearchParams({ action: "query", prop: "revisions", titles: String(year), redirects: "1", rvprop: "content", rvsection: "1", rvslots: "main", format: "json", formatversion: "2", origin: "*" });
-  const response = await fetch(`https://en.wikipedia.org/w/api.php?${params}`, { headers: { Accept: "application/json" } });
+  const params = new URLSearchParams({ action: "query", prop: "revisions", titles: String(year), redirects: "1", rvprop: "content", rvslots: "main", format: "json", formatversion: "2", origin: "*" });
+  const response = await fetch("https://en.wikipedia.org/w/api.php?" + params, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error("Wikipedia could not be reached.");
   const data = await response.json();
+  if (data.error) throw new Error(data.error.info || "Wikipedia could not be reached.");
   const page = data.query?.pages?.[0];
   const content = page?.revisions?.[0]?.slots?.main?.content || page?.revisions?.[0]?.slots?.main?.["*"] || "";
-  return page ? annualWindowEvents(year, content) : [];
+  return page ? annualWindowEvents(year, extractEventsSection(content)) : [];
 }
 
 function selectWindowEvents(events, year, roundNumber) {
@@ -423,25 +434,25 @@ function render() {
     elements.scoreValue.firstChild.textContent = prior ? String(prior.score) : "—";
     elements.scoreUnit.textContent = "/ 1000";
     elements.progressFill.style.width = prior ? `${prior.score / 10}%` : "0%";
-    elements.progressCopy.textContent = prior ? prior.noEventMatch ? "No event match" : `${prior.distance} years from ${prior.targetYear}` : "Proximity + rarity";
+    elements.progressCopy.textContent = prior ? prior.noEventMatch ? "No nearby event" : `${prior.distance} years from ${prior.targetYear}` : "Proximity + rarity";
     if (prior) {
       const label = document.createElement("span");
       label.className = "answer-title";
-      label.textContent = prior.noEventMatch ? "0 POINTS · NO EVENT MATCH" : `${prior.score} POINTS · ${prior.distance} YEARS AWAY · +${prior.rarityBonus || 0} RARITY`;
+      label.textContent = prior.noEventMatch ? "0 POINTS · NO NEARBY EVENT" : `${prior.score} POINTS · ${prior.distance} YEARS AWAY · +${prior.rarityBonus || 0} RARITY`;
       const line = document.createElement("div");
-      const resultText = prior.noEventMatch ? ` was not named in an event on the ${prior.targetYear} year page.` : prior.personContext ? ` is named in a ${prior.targetYear} event: ${prior.personContext} ` : ` is dated ${prior.eventYear}. Your year was ${prior.targetYear}.`;
+      const resultText = prior.noEventMatch ? ` has no dated linked event within ${maxPersonEventDistance} years of ${prior.targetYear}.` : prior.personContext ? ` appears in the ${prior.eventYear} events list: ${prior.personContext}. Your year was ${prior.targetYear}.` : prior.associatedEventTitle ? ` is associated with ${prior.associatedEventTitle} (${prior.eventYear}). Your year was ${prior.targetYear}.` : ` is dated ${prior.eventYear}. Your year was ${prior.targetYear}.`;
       line.append(answerLink({ title: prior.eventTitle, source: prior.eventSource }), document.createTextNode(resultText));
       if (prior.evidenceSource) {
         const evidence = document.createElement("a");
         evidence.href = prior.evidenceSource;
         evidence.target = "_blank";
         evidence.rel = "noreferrer";
-        evidence.textContent = `Source: ${prior.targetYear} events`;
+        evidence.textContent = `Source: ${prior.personContext ? prior.eventYear + " events" : prior.associatedEventTitle || prior.targetYear + " events"}`;
         line.append(evidence);
       }
       elements.answerPanel.append(label, line);
       elements.answerPanel.hidden = false;
-      elements.feedback.textContent = prior.noEventMatch ? "No event match; 0 points." : prior.personContext ? "Person matched to an event on the target year page." : "Event date checked against Wikidata.";
+      elements.feedback.textContent = prior.noEventMatch ? "No nearby dated event match; 0 points." : prior.associatedEventTitle ? "Person matched to a dated event." : "Event date checked against Wikidata.";
       elements.feedback.className = prior.noEventMatch ? "feedback negative" : "feedback positive";
       elements.eventSearch.disabled = true;
       elements.searchEvent.disabled = true;
@@ -568,9 +579,49 @@ function normalizedTitle(title) {
   return title.replaceAll("_", " ").trim().toLocaleLowerCase();
 }
 
-async function targetYearPersonEvent(title, year) {
-  const events = await fetchYearEvents(year);
-  return events.find(event => event.linkedTitles?.some(linkedTitle => normalizedTitle(linkedTitle) === normalizedTitle(title))) || null;
+async function searchPersonYearPages(title, targetYear) {
+  const years = [];
+  for (let distance = 0; distance <= maxPersonEventDistance; distance += 1) {
+    for (const year of distance === 0 ? [targetYear] : [targetYear - distance, targetYear + distance]) {
+      if (year >= minYear && year <= maxYear) years.push(year);
+    }
+  }
+  const queryTitle = title.replaceAll("\"", " ").trim();
+  const yearQuery = years.join(" OR ");
+  const url = wikimediaUrl("https://en.wikipedia.org/w/api.php", { action: "query", list: "search", srsearch: "linksto:\"" + queryTitle + "\" intitle:(" + yearQuery + ")", srlimit: "500", formatversion: "2" });
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error("Wikipedia event search is unavailable.");
+  const data = await response.json();
+  if (data.error) throw new Error(data.error.info || "Wikipedia event search is unavailable.");
+  const yearPattern = /^(\d{1,4})(?:$|\s|[–—-])/;
+  return (data.query?.search || [])
+    .flatMap(page => {
+      const match = page.title.match(yearPattern);
+      const year = match ? Number(match[1]) : null;
+      if (!years.includes(year)) return [];
+      return [{
+        year,
+        distance: Math.abs(year - targetYear),
+        title: page.title,
+        source: "https://en.wikipedia.org/wiki/" + encodeURIComponent(page.title.replaceAll(" ", "_")),
+        isYearPage: page.title === String(year)
+      }];
+    })
+    .sort((a, b) => a.distance - b.distance || Number(b.isYearPage) - Number(a.isYearPage) || a.title.length - b.title.length);
+}
+
+async function nearestPersonEvent(title, targetYear) {
+  const candidates = await searchPersonYearPages(title, targetYear);
+  for (const candidate of candidates) {
+    if (candidate.isYearPage) {
+      const events = await fetchYearEvents(candidate.year);
+      const match = events.find(event => event.linkedTitles?.some(linkedTitle => normalizedTitle(linkedTitle) === normalizedTitle(title)));
+      if (!match) continue;
+      return { year: candidate.year, title: match.title, context: match.context, source: "https://en.wikipedia.org/wiki/" + candidate.year };
+    }
+    return { year: candidate.year, title: candidate.title, context: "", source: candidate.source };
+  }
+  return null;
 }
 
 async function rarityBonus(title, entity) {
@@ -607,18 +658,20 @@ async function scoreSearchResult(title) {
     if (!resolved) throw new Error("No Wikidata record.");
     const canonicalTitle = resolved.title;
     let personContext = "";
+    let associatedEventTitle = "";
     let year;
     let noEventMatch = false;
     const eventSource = `https://en.wikipedia.org/wiki/${encodeURIComponent(canonicalTitle.replaceAll(" ", "_"))}`;
     let evidenceSource = "";
     if (itemIsHuman(resolved.entity)) {
-      const match = await targetYearPersonEvent(canonicalTitle, target);
-      evidenceSource = `https://en.wikipedia.org/wiki/${target}`;
+      const match = await nearestPersonEvent(canonicalTitle, target);
       if (!match) {
         noEventMatch = true;
       } else {
-        year = target;
+        year = match.year;
         personContext = match.context;
+        associatedEventTitle = match.title;
+        evidenceSource = match.source;
       }
     } else {
       year = entityYears(resolved.entity.claims || {}).sort((a, b) => Math.abs(a - target) - Math.abs(b - target))[0];
@@ -631,35 +684,35 @@ async function scoreSearchResult(title) {
     }
     const distance = noEventMatch ? null : Math.abs(year - target);
     const bonus = noEventMatch ? 0 : await rarityBonus(canonicalTitle, resolved.entity);
-    const proximity = noEventMatch ? 0 : Math.max(0, 1000 - distance);
-    const score = Math.round(proximity * (0.9 + bonus / 1000));
-    const rarityPoints = score - Math.round(proximity * 0.9);
+    const proximity = noEventMatch ? 0 : 900 * Math.pow(0.85, distance);
+    const score = Math.min(1000, Math.round(proximity * (1 + bonus / 900)));
+    const rarityPoints = noEventMatch ? 0 : score - Math.round(proximity);
     state.plays += 1;
-    state.lastResult = { round: state.plays - 1, mode: "near", score, eventTitle: canonicalTitle, eventSource, evidenceSource, eventYear: year ?? null, targetYear: target, distance, rarityBonus: rarityPoints, personContext, noEventMatch };
+    state.lastResult = { round: state.plays - 1, mode: "near", score, eventTitle: canonicalTitle, eventSource, evidenceSource, associatedEventTitle, eventYear: year ?? null, targetYear: target, distance, rarityBonus: rarityPoints, personContext, noEventMatch };
     persist();
     elements.answerPanel.replaceChildren();
     const label = document.createElement("span");
     label.className = "answer-title";
-    label.textContent = noEventMatch ? "0 POINTS · NO EVENT MATCH" : `${score} POINTS · ${distance} YEARS AWAY · +${rarityPoints} RARITY`;
+    label.textContent = noEventMatch ? "0 POINTS · NO NEARBY EVENT" : `${score} POINTS · ${distance} YEARS AWAY · +${rarityPoints} RARITY`;
     const line = document.createElement("div");
-    const resultText = noEventMatch ? ` was not named in an event on the ${target} year page.` : personContext ? ` is named in a ${target} event: ${personContext} ` : ` is dated ${year}. Your year was ${target}.`;
+    const resultText = noEventMatch ? ` has no dated linked event within ${maxPersonEventDistance} years of ${target}.` : personContext ? ` appears in the ${year} events list: ${personContext}. Your year was ${target}.` : associatedEventTitle ? ` is associated with ${associatedEventTitle} (${year}). Your year was ${target}.` : ` is dated ${year}. Your year was ${target}.`;
     line.append(answerLink({ title: canonicalTitle, year, source: eventSource }), document.createTextNode(resultText));
     if (evidenceSource) {
       const evidence = document.createElement("a");
       evidence.href = evidenceSource;
       evidence.target = "_blank";
       evidence.rel = "noreferrer";
-      evidence.textContent = `Source: ${target} events`;
+      evidence.textContent = `Source: ${personContext ? year + " events" : associatedEventTitle || target + " events"}`;
       line.append(evidence);
     }
     elements.answerPanel.append(label, line);
     elements.answerPanel.hidden = false;
-    elements.feedback.textContent = noEventMatch ? "No event match; 0 points." : personContext ? "Person matched to a target-year event." : "Event date checked against Wikidata.";
+    elements.feedback.textContent = noEventMatch ? "No nearby dated event match; 0 points." : associatedEventTitle ? "Person matched to a dated event." : "Event date checked against Wikidata.";
     elements.feedback.className = noEventMatch ? "feedback negative" : "feedback positive";
     elements.scoreValue.firstChild.textContent = String(score);
     elements.scoreUnit.textContent = "/ 1000";
     elements.progressFill.style.width = `${score / 10}%`;
-    elements.progressCopy.textContent = noEventMatch ? "No event match" : `${distance} years from ${target}`;
+    elements.progressCopy.textContent = noEventMatch ? "No nearby event" : `${distance} years from ${target}`;
     elements.searchEvent.disabled = true;
     elements.eventSearch.disabled = true;
     updateStatus();
