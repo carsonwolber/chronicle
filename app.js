@@ -154,6 +154,8 @@ async function fetchRandomTheme(seed) {
         && !lower.includes(" by year")
         && !lower.includes(" by country")
         && !lower.includes(" by century")
+        && !/\b(?:seasons?|teams?|leagues?|tournaments?|championships?)\b/i.test(name)
+        && !/\b(?:sports?|athletics)\b/i.test(name)
         && !/\d{4}/.test(name);
     });
     if (!usableCategories.length) continue;
@@ -174,7 +176,10 @@ async function fetchRandomTheme(seed) {
     const events = pages.flatMap(page => {
       const itemId = page.pageprops?.wikibase_item;
       const entity = entitiesData.entities?.[itemId];
-      if (!entity || itemIsHuman(entity)) return [];
+      const description = entity?.descriptions?.en?.value || "";
+      const pageHasYear = /\b\d{4}\b/.test(page.title);
+      const isLowValueType = /\b(?:sports season|season of|hockey team|sports team|football club|basketball team|baseball team|sports league)\b/i.test(description);
+      if (!entity || itemIsHuman(entity) || pageHasYear || isLowValueType) return [];
       const year = entityYears(entity.claims || {})
         .filter(value => value >= minYear && value <= maxYear)
         .sort((a, b) => a - b)[0];
