@@ -7,7 +7,7 @@ const stateKey = `chroniclr:${slot}`;
 const windowCacheKey = `chroniclr:window:v2:${slot}`;
 const packs = window.chroniclrThemePacks;
 const state = JSON.parse(localStorage.getItem(stateKey) || "null") || { plays: 0, lastResult: null };
-const elements = Object.fromEntries(["resetTimer", "orderMode", "themeMode", "nearMode", "gamePanel", "challengeHeading", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "nextPlay", "checkOrder", "shuffleRound", "roundIndex", "scoreValue", "scoreUnit", "progressFill", "progressCopy", "upgradeTop", "upgradeSide", "paywall", "closePaywall", "paywallDone"].map(id => [id, document.getElementById(id)]));
+const elements = Object.fromEntries(["resetTimer", "orderMode", "themeMode", "nearMode", "gamePanel", "challengeHeading", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "nextPlay", "checkOrder", "shuffleRound", "roundIndex", "scoreValue", "scoreUnit", "progressFill", "progressCopy"].map(id => [id, document.getElementById(id)]));
 let mode = localStorage.getItem("chroniclr:mode") || "random";
 let baseYear = minYear;
 let windowEvents = [];
@@ -176,14 +176,13 @@ function updateClock() {
 }
 
 function updateStatus() {
-  const remaining = Math.max(0, 3 - state.plays);
   const currentResult = state.lastResult && state.lastResult.round === state.plays - 1 && state.lastResult.mode === mode;
-  elements.roundIndex.textContent = `${String(Math.min(state.plays + 1, 3)).padStart(2, "0")} / 03`;
+  elements.roundIndex.textContent = String(state.plays + 1).padStart(2, "0");
   elements.nextPlay.disabled = !state.lastResult;
-  elements.nextPlay.textContent = remaining === 0 ? "NO ROUNDS LEFT" : "NEXT ROUND";
-  elements.checkOrder.disabled = locked || (remaining === 0 && !debugPreview);
-  elements.eventSearch.disabled = mode === "near" && (remaining === 0 || currentResult);
-  elements.searchEvent.disabled = mode === "near" && (remaining === 0 || currentResult);
+  elements.nextPlay.textContent = "NEXT ROUND";
+  elements.checkOrder.disabled = locked;
+  elements.eventSearch.disabled = mode === "near" && currentResult;
+  elements.searchEvent.disabled = mode === "near" && currentResult;
   elements.shuffleRound.hidden = mode === "near";
 }
 
@@ -382,7 +381,7 @@ function showOrderAnswer(score) {
 }
 
 function submitOrder() {
-  if (locked || (state.plays >= 3 && !debugPreview) || mode === "near") return;
+  if (locked || mode === "near") return;
   locked = true;
   currentCorrectOrder = [...currentPack.events].sort((a, b) => a.year - b.year).map(event => currentPack.events.indexOf(event));
   const score = order.reduce((total, eventIndex, position) => total + Number(eventIndex === currentCorrectOrder[position]), 0);
@@ -504,10 +503,6 @@ function autoMappedSearchResult(query, results) {
 }
 
 async function searchWikipedia() {
-  if (state.plays >= 3) {
-    openPaywall();
-    return;
-  }
   const query = elements.eventSearch.value.trim();
   if (!query) return;
   elements.searchResults.replaceChildren();
@@ -644,10 +639,6 @@ async function rarityBonus(title, entity) {
 }
 
 async function scoreSearchResult(title) {
-  if (state.plays >= 3) {
-    openPaywall();
-    return;
-  }
   elements.searchResults.replaceChildren();
   elements.feedback.textContent = "Checking the date and connection…";
   elements.eventSearch.disabled = true;
@@ -725,10 +716,6 @@ async function scoreSearchResult(title) {
 
 function nextPlay() {
   if (!state.lastResult) return;
-  if (state.plays >= 3) {
-    openPaywall();
-    return;
-  }
   state.lastResult = null;
   debugPreview = false;
   persist();
@@ -768,16 +755,6 @@ async function shuffleCurrentRound() {
   elements.shuffleRound.disabled = false;
 }
 
-function openPaywall() {
-  elements.paywall.hidden = false;
-  elements.closePaywall.focus();
-}
-
-function closePaywall() {
-  elements.paywall.hidden = true;
-  elements.upgradeTop.focus();
-}
-
 elements.orderMode.addEventListener("click", () => setMode("random"));
 elements.themeMode.addEventListener("click", () => setMode("theme"));
 elements.nearMode.addEventListener("click", () => setMode("near"));
@@ -790,16 +767,6 @@ elements.eventSearch.addEventListener("keydown", event => {
     event.preventDefault();
     searchWikipedia();
   }
-});
-elements.closePaywall.addEventListener("click", closePaywall);
-elements.paywallDone.addEventListener("click", closePaywall);
-elements.upgradeTop.addEventListener("click", openPaywall);
-elements.upgradeSide.addEventListener("click", openPaywall);
-elements.paywall.addEventListener("click", event => {
-  if (event.target === elements.paywall) closePaywall();
-});
-document.addEventListener("keydown", event => {
-  if (event.key === "Escape" && !elements.paywall.hidden) closePaywall();
 });
 
 async function initialize() {
