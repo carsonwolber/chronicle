@@ -42,7 +42,7 @@ test("searches arbitrary names year by year within the nearest range", async () 
     searchYear: async query => {
       queries.push(query);
       assert.ok(query.length <= 300);
-      assert.match(query, /^intitle:\\d+ linksto:"Ada Lovelace"$/);
+      assert.match(query, /^intitle:\d+ linksto:"Ada Lovelace"$/);
       return query === 'intitle:1842 linksto:"Ada Lovelace"' ? [{ title: "1842" }] : [];
     },
     fetchYearEvents: async year => [{
