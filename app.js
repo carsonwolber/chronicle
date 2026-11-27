@@ -321,7 +321,7 @@ function updateYearLabels() {
   elements.windowEnd.hidden = mode === "near";
   elements.yearWindow.hidden = mode === "theme" && !years.length;
   elements.yearWindow.setAttribute("aria-label", years.length ? "Year range " + Math.min(...years) + " to " + Math.max(...years) : "Wikipedia theme loading");
-    elements.targetYear.textContent = target || currentTargetYear();
+  elements.targetYear.textContent = target || currentTargetYear();
 }
 
 function setMode(nextMode) {
