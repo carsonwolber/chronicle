@@ -207,6 +207,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 .search-row textarea { flex: 1; min-width: 0; min-height: 150px; padding: 18px; border: 1px solid var(--line-light); border-radius: 0; background: #171511; color: var(--ink); font: 27px/1.4 var(--serif); resize: vertical; }
 .search-row textarea::placeholder { color: var(--faint); }
 .score-explainer { margin-top: 11px; color: var(--faint); font: 10px/1.6 var(--mono); }
+#eventList[hidden], #promptLine[hidden] { display: none; }
 
 @media (max-width: 680px) {
   .game-panel { grid-row: 2; }
