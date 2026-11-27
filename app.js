@@ -4,7 +4,7 @@ const maxYear = 2016;
 const maxPersonEventDistance = 25;
 const articleQuality = window.articleQuality;
 const targetYearCenter = 1900;
-const targetYearScale = 1000;
+const targetYearStdDev = 100;
 const slot = Math.floor(Date.now() / windowLength);
 const closerStateKey = "chroniclr:closer";
 const closerSavedState = JSON.parse(localStorage.getItem(closerStateKey) || "null");
@@ -315,11 +315,13 @@ function persist() {
 function weightedTargetYear(random) {
   let totalWeight = 0;
   for (let year = minYear; year <= maxYear; year += 1) {
-    totalWeight += 1 / (1 + Math.abs(year - targetYearCenter) / targetYearScale);
+    const distance = (year - targetYearCenter) / targetYearStdDev;
+    totalWeight += Math.exp(-0.5 * distance * distance);
   }
   let selection = random() * totalWeight;
   for (let year = minYear; year <= maxYear; year += 1) {
-    selection -= 1 / (1 + Math.abs(year - targetYearCenter) / targetYearScale);
+    const distance = (year - targetYearCenter) / targetYearStdDev;
+    selection -= Math.exp(-0.5 * distance * distance);
     if (selection < 0) return year;
   }
   return maxYear;
