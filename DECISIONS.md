@@ -33,5 +33,5 @@ The player sees a target year from 15 through 2016 and enters an event or person
 ## References
 
 - [MediaWiki API: Query](https://www.mediawiki.org/wiki/API:Query)
-- [MediaWiki Extension: TextExtracts](https://www.mediawiki.org/wiki/Extension:TextExtracts)
+- [MediaWiki API: Revisions](https://www.mediawiki.org/wiki/API:Revisions)
 - [Wikidata property P585: point in time](https://www.wikidata.org/wiki/Property:P585)
