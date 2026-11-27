@@ -368,10 +368,26 @@ function drawRows() {
     const badge = document.createElement("span");
     badge.className = "position";
     badge.textContent = String(position + 1).padStart(2, "0");
-    const title = document.createElement("span");
-    title.className = "event-title";
-    title.textContent = event.context || event.title;
-    row.append(badge, title);
+    if (mode === "theme") {
+      const copy = document.createElement("span");
+      copy.className = "event-copy";
+      const title = document.createElement("span");
+      title.className = "event-title";
+      title.textContent = event.title;
+      copy.append(title);
+      if (event.context && event.context.toLocaleLowerCase() !== event.title.toLocaleLowerCase()) {
+        const context = document.createElement("span");
+        context.className = "event-context";
+        context.textContent = event.context;
+        copy.append(context);
+      }
+      row.append(badge, copy);
+    } else {
+      const title = document.createElement("span");
+      title.className = "event-title";
+      title.textContent = event.context || event.title;
+      row.append(badge, title);
+    }
     if (locked) {
       const year = document.createElement("span");
       year.className = "event-year";
