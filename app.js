@@ -267,7 +267,7 @@ async function fetchRandomTheme(seed) {
     const selected = selectThemeEvents(events, random);
     if (!selected) continue;
     const topic = category.title.replace(/^Category:/, "");
-    return { theme: "WIKIPEDIA THEME", title: topic, events: selected };
+    return { theme: "THEMED ROUND", title: topic, events: selected };
   }
   throw new Error("Wikipedia did not return a topic with five dated articles.");
 }
@@ -393,7 +393,7 @@ function setupThemeRound(roundNumber) {
     }
   }
 
-  currentPack = { theme: "WIKIPEDIA THEME", title: "Finding a topic…", events: [], themeKey: requestKey };
+  currentPack = { theme: "THEMED ROUND", title: "Finding a topic…", events: [], themeKey: requestKey };
   order = [];
   if (themeLoadKey === requestKey) return;
   const requestId = ++themeRequestId;
@@ -410,7 +410,7 @@ function setupThemeRound(roundNumber) {
     if (requestId !== themeRequestId) return;
     themeLoadKey = "";
     if (mode !== "theme" || debugPreview !== isPreview) return;
-    currentPack = { theme: "WIKIPEDIA THEME", title: "Try another theme", events: [], themeKey: requestKey, loadFailed: true };
+    currentPack = { theme: "THEMED ROUND", title: "Try another theme", events: [], themeKey: requestKey, loadFailed: true };
     render();
   });
 }
@@ -426,7 +426,7 @@ function updateYearLabels() {
   dash.hidden = mode === "near" || mode === "closer";
   elements.windowEnd.hidden = mode === "near" || mode === "closer";
   elements.yearWindow.hidden = mode === "theme" && !years.length;
-  elements.yearWindow.setAttribute("aria-label", mode === "closer" ? years.length ? "Target year " + years[0] : "Target year loading" : years.length ? "Year range " + Math.min(...years) + " to " + Math.max(...years) : "Wikipedia theme loading");
+  elements.yearWindow.setAttribute("aria-label", mode === "closer" ? years.length ? "Target year " + years[0] : "Target year loading" : years.length ? "Year range " + Math.min(...years) + " to " + Math.max(...years) : "Theme loading");
   elements.targetYear.textContent = target || currentTargetYear();
 }
 
@@ -831,9 +831,9 @@ function render() {
     if (prior) {
       const label = document.createElement("span");
       label.className = "answer-title";
-      label.textContent = prior.noEventMatch ? "0 POINTS · NO NEARBY EVENT" : `${prior.score} POINTS · ${prior.distance} YEARS AWAY · +${prior.rarityBonus || 0} RARITY`;
+      label.textContent = prior.noEventMatch ? "0 POINTS · NO MATCH" : `${prior.score} POINTS`;
       const line = document.createElement("div");
-      const resultText = prior.noEventMatch ? ` has no dated linked event within ${maxPersonEventDistance} years of ${prior.targetYear}.` : prior.personContext ? ` appears in the ${prior.eventYear} events list: ${prior.personContext}. Your year was ${prior.targetYear}.` : prior.associatedEventTitle ? ` is associated with ${prior.associatedEventTitle} (${prior.eventYear}). Your year was ${prior.targetYear}.` : ` is dated ${prior.eventYear}. Your year was ${prior.targetYear}.`;
+      const resultText = prior.noEventMatch ? ` could not be matched to ${prior.targetYear}.` : prior.personContext ? ` is connected to ${prior.associatedEventTitle} (${prior.eventYear}). Your year was ${prior.targetYear}.` : prior.associatedEventTitle ? ` is associated with ${prior.associatedEventTitle} (${prior.eventYear}). Your year was ${prior.targetYear}.` : ` is dated ${prior.eventYear}. Your year was ${prior.targetYear}.`;
       line.append(answerLink({ title: prior.eventTitle, source: prior.eventSource }), document.createTextNode(resultText));
       if (prior.evidenceSource) {
         const evidence = document.createElement("a");
@@ -845,7 +845,7 @@ function render() {
       }
       elements.answerPanel.append(label, line);
       elements.answerPanel.hidden = false;
-      elements.feedback.textContent = prior.noEventMatch ? "No nearby dated event match; 0 points." : prior.associatedEventTitle ? "Person matched to a dated event." : "Event date checked against Wikidata.";
+      elements.feedback.textContent = prior.noEventMatch ? "No match for this answer." : prior.associatedEventTitle ? "Connection found." : "Answer checked.";
       elements.feedback.className = prior.noEventMatch ? "feedback negative" : "feedback positive";
       elements.eventSearch.disabled = true;
       elements.searchEvent.disabled = true;
@@ -877,8 +877,8 @@ function render() {
   if (!showPriorResult()) {
     drawRows();
   }
-  if (mode === "random" && !currentPack.events.length) elements.feedback.textContent = randomLoadError ? "Wikipedia could not load this random window. Use Shuffle to try another." : "No linked event pages were found in this window. Use Shuffle to try another.";
-  if (mode === "theme" && !currentPack.events.length) elements.feedback.textContent = currentPack.loadFailed ? "Wikipedia could not find five dated articles for a topic. Use Shuffle to try another." : "Finding a random Wikipedia topic…";
+  if (mode === "random" && !currentPack.events.length) elements.feedback.textContent = randomLoadError ? "Could not load this round. Use Shuffle to try again." : "No playable round was found. Use Shuffle to try again.";
+  if (mode === "theme" && !currentPack.events.length) elements.feedback.textContent = currentPack.loadFailed ? "Could not find a playable theme. Use Shuffle to try again." : "Finding a theme…";
   updateStatus();
 }
 
@@ -904,7 +904,7 @@ async function searchWikipedia() {
   const query = elements.eventSearch.value.trim();
   if (!query) return;
   elements.searchResults.replaceChildren();
-  elements.feedback.textContent = "Searching Wikipedia…";
+  elements.feedback.textContent = "Searching…";
   try {
     const url = wikimediaUrl("https://en.wikipedia.org/w/api.php", { action: "query", list: "search", srsearch: query, srlimit: "5" });
     const response = await fetch(url, { headers: { Accept: "application/json" } });
@@ -933,7 +933,7 @@ async function searchWikipedia() {
       elements.searchResults.append(button);
     }
   } catch {
-    elements.feedback.textContent = "Wikipedia search could not load. Try again in a moment.";
+    elements.feedback.textContent = "Search could not load. Try again in a moment.";
   }
 }
 
@@ -1037,7 +1037,7 @@ async function scoreSearchResult(title) {
       year = entityYears(resolved.entity.claims || {}).sort((a, b) => Math.abs(a - target) - Math.abs(b - target))[0];
     }
     if (!noEventMatch && !Number.isFinite(year)) {
-      elements.feedback.textContent = "I couldn't find a reliable event date for that article. Try another result.";
+      elements.feedback.textContent = "I couldn't verify a date for that answer. Try another.";
       elements.eventSearch.disabled = false;
       elements.searchEvent.disabled = false;
       return;
@@ -1053,21 +1053,21 @@ async function scoreSearchResult(title) {
     elements.answerPanel.replaceChildren();
     const label = document.createElement("span");
     label.className = "answer-title";
-    label.textContent = noEventMatch ? "0 POINTS · NO NEARBY EVENT" : `${score} POINTS · ${distance} YEARS AWAY · +${rarityPoints} RARITY`;
+    label.textContent = noEventMatch ? "0 POINTS · NO MATCH" : `${score} POINTS`;
     const line = document.createElement("div");
-    const resultText = noEventMatch ? ` has no dated linked event within ${maxPersonEventDistance} years of ${target}.` : personContext ? ` appears in the ${year} events list: ${personContext}. Your year was ${target}.` : associatedEventTitle ? ` is associated with ${associatedEventTitle} (${year}). Your year was ${target}.` : ` is dated ${year}. Your year was ${target}.`;
+    const resultText = noEventMatch ? ` could not be matched to ${target}.` : personContext ? ` is connected to ${associatedEventTitle} (${year}). Your year was ${target}.` : associatedEventTitle ? ` is associated with ${associatedEventTitle} (${year}). Your year was ${target}.` : ` is dated ${year}. Your year was ${target}.`;
     line.append(answerLink({ title: canonicalTitle, year, source: eventSource }), document.createTextNode(resultText));
     if (evidenceSource) {
       const evidence = document.createElement("a");
       evidence.href = evidenceSource;
       evidence.target = "_blank";
       evidence.rel = "noreferrer";
-      evidence.textContent = `Source: ${personContext ? year + " events" : associatedEventTitle || target + " events"}`;
+      evidence.textContent = "Supporting source";
       line.append(evidence);
     }
     elements.answerPanel.append(label, line);
     elements.answerPanel.hidden = false;
-    elements.feedback.textContent = noEventMatch ? "No nearby dated event match; 0 points." : associatedEventTitle ? "Person matched to a dated event." : "Event date checked against Wikidata.";
+    elements.feedback.textContent = noEventMatch ? "No match for this answer." : associatedEventTitle ? "Connection found." : "Answer checked.";
     elements.feedback.className = noEventMatch ? "feedback negative" : "feedback positive";
     elements.searchEvent.disabled = true;
     elements.eventSearch.disabled = true;
@@ -1119,7 +1119,7 @@ async function shuffleCurrentRound() {
       debugEvents = events;
       randomLoadError = false;
     } catch {
-      elements.feedback.textContent = "Wikipedia could not load a new window. Try Shuffle again.";
+      elements.feedback.textContent = "Could not load a new round. Try Shuffle again.";
       elements.shuffleRound.disabled = false;
       return;
     }
