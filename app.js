@@ -6,7 +6,7 @@ const slot = Math.floor(Date.now() / windowLength);
 const stateKey = `chroniclr:${slot}`;
 const windowCacheKey = `chroniclr:window:v2:${slot}`;
 const state = JSON.parse(localStorage.getItem(stateKey) || "null") || { plays: 0, lastResult: null };
-const elements = Object.fromEntries(["resetTimer", "orderMode", "themeMode", "nearMode", "gamePanel", "challengeHeading", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "nextPlay", "checkOrder", "shuffleRound", "roundIndex", "scoreValue", "scoreUnit", "progressFill", "progressCopy"].map(id => [id, document.getElementById(id)]));
+const elements = Object.fromEntries(["resetTimer", "orderMode", "themeMode", "nearMode", "gamePanel", "challengeHeading", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "nextPlay", "checkOrder", "shuffleRound", "resultDialog", "resultScore", "resultGrid", "shareResult", "copyResult", "shareX", "shareWhatsApp", "closeResultDialog", "shareFeedback"].map(id => [id, document.getElementById(id)]));
 let mode = localStorage.getItem("chroniclr:mode") || "random";
 let baseYear = minYear;
 let windowEvents = [];
@@ -21,6 +21,9 @@ let debugSeed = "";
 let debugYear = null;
 let debugEvents = [];
 let randomLoadError = false;
+let shareMessage = "";
+let shareText = "";
+let shareUrl = "";
 let themeLoadKey = "";
 
 function seededRandom(seed) {
@@ -172,7 +175,7 @@ async function fetchRandomTheme(seed) {
       const itemId = page.pageprops?.wikibase_item;
       const entity = entitiesData.entities?.[itemId];
       if (!entity || itemIsHuman(entity)) return [];
-      const year = entityYears(entity.claims || [])
+      const year = entityYears(entity.claims || {})
         .filter(value => value >= minYear && value <= maxYear)
         .sort((a, b) => a - b)[0];
       if (!Number.isFinite(year)) return [];
@@ -228,7 +231,7 @@ async function loadRandomWindow() {
   }
 }
 
-function persist()function persist() {
+function persist() {
   localStorage.setItem(stateKey, JSON.stringify(state));
 }
 
@@ -251,7 +254,6 @@ function updateClock() {
 
 function updateStatus() {
   const currentResult = state.lastResult && state.lastResult.round === state.plays - 1 && state.lastResult.mode === mode;
-  elements.roundIndex.textContent = String(state.plays + 1).padStart(2, "0");
   elements.nextPlay.disabled = !state.lastResult;
   elements.nextPlay.textContent = "NEXT ROUND";
   elements.checkOrder.disabled = locked || (mode === "theme" && currentPack?.events?.length !== 5);
@@ -310,7 +312,7 @@ function setupThemeRound(roundNumber) {
     render();
   });
 }
-function updateYearLabels()function updateYearLabels() {
+function updateYearLabels() {
   const dash = elements.yearWindow.querySelector(".window-dash");
   const target = mode === "near" ? currentTargetYear() : null;
   const activeBaseYear = debugPreview && mode === "random" ? debugYear : baseYear;
@@ -322,7 +324,7 @@ function updateYearLabels()function updateYearLabels() {
   elements.windowEnd.hidden = mode === "near";
   elements.yearWindow.hidden = mode === "theme" && !years.length;
   elements.yearWindow.setAttribute("aria-label", years.length ? "Year range " + Math.min(...years) + " to " + Math.max(...years) : "Wikipedia theme loading");
-  elements.targetYear.textContent = target || currentTargetYear();  elements.targetYear.textContent = target || currentTargetYear();
+  elements.targetYear.textContent = target || currentTargetYear();
 }
 
 function setMode(nextMode) {
@@ -485,10 +487,56 @@ function showOrderAnswer(score) {
   elements.answerPanel.hidden = false;
   elements.feedback.textContent = `${score} of 5 in the right position.`;
   elements.feedback.className = `feedback ${score === 5 ? "positive" : "negative"}`;
-  elements.scoreValue.firstChild.textContent = String(score);
-  elements.scoreUnit.textContent = "/ 5";
-  elements.progressFill.style.width = `${score * 20}%`;
-  elements.progressCopy.textContent = "Correct positions";
+}
+
+function showRandomResult(score) {
+  const squares = order.map((eventIndex, position) => eventIndex === currentCorrectOrder[position] ? "🟩" : "⬛").join("");
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  shareText = `chroniclr · Random Window\n${score}/5 in the right position\n${squares}`;
+  shareUrl = url.toString();
+  shareMessage = `${shareText}\n${shareUrl}`;
+  elements.resultScore.textContent = `${score}/5`;
+  elements.resultGrid.textContent = squares;
+  elements.resultGrid.setAttribute("aria-label", `${score} of 5 in the right position`);
+  elements.shareFeedback.textContent = "";
+  elements.shareX.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
+  elements.shareWhatsApp.href = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`;
+  if (!elements.resultDialog.open) elements.resultDialog.showModal();
+}
+
+async function copyRandomResult() {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(shareMessage);
+    } else {
+      const field = document.createElement("textarea");
+      field.value = shareMessage;
+      field.style.position = "fixed";
+      field.style.opacity = "0";
+      document.body.append(field);
+      field.select();
+      const copied = document.execCommand("copy");
+      field.remove();
+      if (!copied) throw new Error("Copy failed.");
+    }
+    elements.shareFeedback.textContent = "Result copied.";
+  } catch {
+    elements.shareFeedback.textContent = "Could not copy. Use one of the social links.";
+  }
+}
+
+async function shareRandomResult() {
+  if (!navigator.share) {
+    await copyRandomResult();
+    return;
+  }
+  try {
+    await navigator.share({ title: "chroniclr score", text: shareText, url: shareUrl });
+  } catch (error) {
+    if (error.name !== "AbortError") elements.shareFeedback.textContent = "Sharing is unavailable. Copy the result or use a social link.";
+  }
 }
 
 function submitOrder() {
@@ -503,6 +551,7 @@ function submitOrder() {
   }
   drawRows();
   showOrderAnswer(score);
+  if (mode === "random" && !debugPreview) showRandomResult(score);
   updateStatus();
 }
 
@@ -517,6 +566,7 @@ function showPriorResult() {
   const score = state.lastResult.score;
   drawRows();
   showOrderAnswer(score);
+  if (mode === "random") showRandomResult(score);
   return true;
 }
 
@@ -541,10 +591,6 @@ function render() {
     elements.challengeHeading.hidden = true;
     updateYearLabels();
     const prior = state.lastResult && state.lastResult.round === state.plays - 1 && state.lastResult.mode === "near" ? state.lastResult : null;
-    elements.scoreValue.firstChild.textContent = prior ? String(prior.score) : "—";
-    elements.scoreUnit.textContent = "/ 1000";
-    elements.progressFill.style.width = prior ? `${prior.score / 10}%` : "0%";
-    elements.progressCopy.textContent = prior ? prior.noEventMatch ? "No nearby event" : `${prior.distance} years from ${prior.targetYear}` : "Proximity + rarity";
     if (prior) {
       const label = document.createElement("span");
       label.className = "answer-title";
@@ -586,10 +632,6 @@ function render() {
   currentCorrectOrder = [...currentPack.events].sort((a, b) => a.year - b.year).map(event => currentPack.events.indexOf(event));
   if (!showPriorResult()) {
     drawRows();
-    elements.scoreValue.firstChild.textContent = "—";
-    elements.scoreUnit.textContent = "/ 5";
-    elements.progressFill.style.width = "0%";
-    elements.progressCopy.textContent = "Correct positions";
   }
   if (mode === "random" && !currentPack.events.length) elements.feedback.textContent = randomLoadError ? "Wikipedia could not load this random window. Use Shuffle to try another." : "No linked event pages were found in this window. Use Shuffle to try another.";
   if (mode === "theme" && !currentPack.events.length) elements.feedback.textContent = currentPack.loadFailed ? "Wikipedia could not find five dated articles for a topic. Use Shuffle to try another." : "Finding a random Wikipedia topic…";
@@ -812,10 +854,6 @@ async function scoreSearchResult(title) {
     elements.answerPanel.hidden = false;
     elements.feedback.textContent = noEventMatch ? "No nearby dated event match; 0 points." : associatedEventTitle ? "Person matched to a dated event." : "Event date checked against Wikidata.";
     elements.feedback.className = noEventMatch ? "feedback negative" : "feedback positive";
-    elements.scoreValue.firstChild.textContent = String(score);
-    elements.scoreUnit.textContent = "/ 1000";
-    elements.progressFill.style.width = `${score / 10}%`;
-    elements.progressCopy.textContent = noEventMatch ? "No nearby event" : `${distance} years from ${target}`;
     elements.searchEvent.disabled = true;
     elements.eventSearch.disabled = true;
     updateStatus();
@@ -870,6 +908,12 @@ async function shuffleCurrentRound() {
 elements.orderMode.addEventListener("click", () => setMode("random"));
 elements.themeMode.addEventListener("click", () => setMode("theme"));
 elements.nearMode.addEventListener("click", () => setMode("near"));
+elements.shareResult.addEventListener("click", shareRandomResult);
+elements.copyResult.addEventListener("click", copyRandomResult);
+elements.closeResultDialog.addEventListener("click", () => elements.resultDialog.close());
+elements.resultDialog.addEventListener("click", event => {
+  if (event.target === elements.resultDialog) elements.resultDialog.close();
+});
 elements.checkOrder.addEventListener("click", submitOrder);
 elements.shuffleRound.addEventListener("click", shuffleCurrentRound);
 elements.nextPlay.addEventListener("click", nextPlay);

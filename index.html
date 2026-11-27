@@ -58,15 +58,29 @@
         </div>
       </section>
 
-      <aside class="side-rail" aria-label="Your score">
-        <section class="score-card">
-          <div class="card-kicker">THIS ROUND <span id="roundIndex">01</span></div>
-          <div class="score-number" id="scoreValue">—<span id="scoreUnit">/ 5</span></div>
-          <div class="score-rule"><span id="progressFill"></span></div>
-          <div class="score-caption" id="progressCopy">Correct positions</div>
-        </section>
-      </aside>
     </section>
+
+    <dialog class="result-dialog" id="resultDialog" aria-labelledby="resultDialogTitle">
+      <div class="result-dialog-header">
+        <span class="eyebrow">RANDOM WINDOW</span>
+        <button class="result-close" id="closeResultDialog" type="button" aria-label="Close score popup">×</button>
+      </div>
+      <h2 id="resultDialogTitle">Round complete</h2>
+      <div class="result-score" id="resultScore"></div>
+      <div class="result-grid" id="resultGrid" aria-label="Your placement pattern"></div>
+      <div class="result-share-actions">
+        <button class="share-button" id="shareResult" type="button">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8.6 10.6 6.8-4.2M8.6 13.4l6.8 4.2"></path></svg>
+          SHARE SCORE
+        </button>
+        <button class="copy-result" id="copyResult" type="button">COPY RESULT</button>
+      </div>
+      <div class="result-share-links" aria-label="Share on social media">
+        <a id="shareX" href="#" target="_blank" rel="noreferrer">X</a>
+        <a id="shareWhatsApp" href="#" target="_blank" rel="noreferrer">WHATSAPP</a>
+      </div>
+      <div class="share-feedback" id="shareFeedback" role="status" aria-live="polite"></div>
+    </dialog>
 
     <footer class="page-footer"><span>chroniclr</span></footer>
   </main>
