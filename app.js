@@ -761,8 +761,8 @@ async function searchPersonYearPages(title, targetYear) {
     }
   }
   const queryTitle = title.replaceAll("\"", " ").trim();
-  const yearQuery = years.join(" OR ");
-  const url = wikimediaUrl("https://en.wikipedia.org/w/api.php", { action: "query", list: "search", srsearch: "linksto:\"" + queryTitle + "\" intitle:(" + yearQuery + ")", srlimit: "500", formatversion: "2" });
+  const yearQuery = years.map(year => `intitle:"${year}"`).join(" OR ");
+  const url = wikimediaUrl("https://en.wikipedia.org/w/api.php", { action: "query", list: "search", srsearch: "(" + yearQuery + ") linksto: \"" + queryTitle + "\"", srlimit: "500", formatversion: "2" });
   const response = await fetch(url, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error("Wikipedia event search is unavailable.");
   const data = await response.json();
