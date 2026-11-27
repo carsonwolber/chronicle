@@ -614,14 +614,16 @@ async function scoreSearchResult(title) {
     }
     const distance = Math.abs(year - target);
     const bonus = await rarityBonus(canonicalTitle, resolved.entity);
-    const score = Math.min(1000, Math.max(0, 1000 - distance) + bonus);
+    const proximity = Math.max(0, 1000 - distance);
+    const score = Math.round(proximity * (0.9 + bonus / 1000));
+    const rarityPoints = score - Math.round(proximity * 0.9);
     state.plays += 1;
-    state.lastResult = { round: state.plays - 1, mode: "near", score, eventTitle: canonicalTitle, eventSource, evidenceSource, eventYear: year, targetYear: target, distance, rarityBonus: bonus, personContext };
+    state.lastResult = { round: state.plays - 1, mode: "near", score, eventTitle: canonicalTitle, eventSource, evidenceSource, eventYear: year, targetYear: target, distance, rarityBonus: rarityPoints, personContext };
     persist();
     elements.answerPanel.replaceChildren();
     const label = document.createElement("span");
     label.className = "answer-title";
-    label.textContent = `${score} POINTS · ${distance} YEARS AWAY · +${bonus} RARITY`;
+    label.textContent = `${score} POINTS · ${distance} YEARS AWAY · +${rarityPoints} RARITY`;
     const line = document.createElement("div");
     line.append(answerLink({ title: canonicalTitle, year, source: eventSource }), document.createTextNode(personContext ? ` is named in a ${target} event: ${personContext} ` : ` is dated ${year}. Your year was ${target}.`));
     if (evidenceSource) {
