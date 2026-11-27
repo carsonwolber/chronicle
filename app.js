@@ -1043,6 +1043,15 @@ async function scoreSearchResult(title) {
       }
     } else {
       year = entityYears(resolved.entity.claims || {}).sort((a, b) => Math.abs(a - target) - Math.abs(b - target))[0];
+      if (!Number.isFinite(year)) {
+        const match = await nearestPersonEvent(canonicalTitle, target);
+        if (match) {
+          year = match.year;
+          associatedEventTitle = match.title;
+          personContext = match.context;
+          evidenceSource = match.source;
+        }
+      }
     }
     if (!noEventMatch && !Number.isFinite(year)) {
       elements.feedback.textContent = "I couldn't verify a date for that answer. Try another.";
