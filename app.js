@@ -56,7 +56,7 @@ function annualWindowEvents(year, wikitext) {
   ];
   const results = [];
   for (const rawLine of wikitext.split(/\n+/)) {
-    const line = rawLine.replace(/^[*#;:\s]+/, "").replace(/^'{2,3}([^']+)'{2,3}/, "$1").replace(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/, (_, target, label) => label || target).replace(/<ref\b[^>]*>[\s\S]*?<\/ref>/gi, "").replace(/<ref\b[^/]*\/>/gi, "").replace(/\s+/g, " ").trim();
+    const line = rawLine.replace(/&(?:ndash|mdash);|&#0*821[12];|&#x0*20(?:13|14);/gi, "–").replace(/^[*#;:\s]+/, "").replace(/^'{2,3}([^']+)'{2,3}/, "$1").replace(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/, (_, target, label) => label || target).replace(/<ref\b[^>]*>[\s\S]*?<\/ref>/gi, "").replace(/<ref\b[^/]*\/>/gi, "").replace(/\s+/g, " ").trim();
     const match = patterns.map(pattern => line.match(pattern)).find(Boolean);
     if (!match) continue;
     const datePrefix = line.length - match[1].length;
