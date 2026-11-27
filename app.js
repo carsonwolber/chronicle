@@ -76,11 +76,14 @@ function annualWindowEvents(year, wikitext) {
     const datePrefix = line.length - match[1].length;
     const links = [...match[1].matchAll(/\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g)].map(link => ({ title: link[1].replaceAll("_", " ").trim(), label: (link[2] || link[1]).replaceAll("_", " ").trim(), position: line.indexOf(link[0]) }));
     const candidates = links.filter(link => link.position >= datePrefix && !/^(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}$/i.test(link.title) && !/^\d{1,4}$/.test(link.title) && !/^(?:Help|Special|File|Category|Wikipedia):/i.test(link.title));
-    const title = articleQuality.selectAnnualEventTitle(candidates);
-    if (!title) continue;
+    const linkedTitle = articleQuality.selectAnnualEventTitle(candidates);
     const linkedTitles = [...new Set(links.map(link => link.title))];
     const context = match[1].replace(/\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g, (_, target, label) => (label || target).replaceAll("_", " ")).replace(/\{\{[^{}]*\}\}/g, "").replace(/'''?/g, "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-    const source = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replaceAll(" ", "_"))}`;
+    const title = linkedTitle || context;
+    if (!title || title.length > 240 || articleQuality.isGenericArticle(title)) continue;
+    const source = linkedTitle
+      ? `https://en.wikipedia.org/wiki/${encodeURIComponent(linkedTitle.replaceAll(" ", "_"))}`
+      : `https://en.wikipedia.org/wiki/${year}`;
     results.push({ id: `${year}-${hashSeed(title)}`, title, linkedTitles, context, year, source });
   }
   return [...new Map(results.map(event => [event.title, event])).values()].slice(0, 100);
