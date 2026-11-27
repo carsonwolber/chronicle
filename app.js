@@ -8,7 +8,7 @@ const closerSavedState = JSON.parse(localStorage.getItem(closerStateKey) || "nul
 const stateKey = `chroniclr:${slot}`;
 const windowCacheKey = `chroniclr:window:v2:${slot}`;
 const state = JSON.parse(localStorage.getItem(stateKey) || "null") || { plays: 0, lastResult: null };
-const elements = Object.fromEntries(["resetTimer", "orderMode", "themeMode", "nearMode", "closerMode", "gamePanel", "compareBoard", "comparePrompt", "compareYear", "compareOptions", "closerScore", "closerBest", "resultEyebrow", "challengeHeading", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "nextPlay", "checkOrder", "shuffleRound", "resultDialog", "resultScore", "resultGrid", "shareResult", "copyResult", "shareX", "shareWhatsApp", "closeResultDialog", "shareFeedback"].map(id => [id, document.getElementById(id)]));
+const elements = Object.fromEntries(["resetTimer", "orderMode", "themeMode", "nearMode", "closerMode", "gamePanel", "compareBoard", "comparePrompt", "compareOptions", "closerScore", "closerBest", "resultEyebrow", "resultDialogTitle", "challengeHeading", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "nextPlay", "checkOrder", "shuffleRound", "resultDialog", "resultScore", "resultGrid", "shareResult", "copyResult", "shareX", "shareWhatsApp", "closeResultDialog", "shareFeedback"].map(id => [id, document.getElementById(id)]));
 let mode = localStorage.getItem("chroniclr:mode") || "random";
 let baseYear = minYear;
 let windowEvents = [];
@@ -406,7 +406,7 @@ function updateYearLabels() {
   dash.hidden = mode === "near" || mode === "closer";
   elements.windowEnd.hidden = mode === "near" || mode === "closer";
   elements.yearWindow.hidden = mode === "theme" && !years.length;
-  elements.yearWindow.setAttribute("aria-label", years.length ? "Year range " + Math.min(...years) + " to " + Math.max(...years) : "Wikipedia theme loading");
+  elements.yearWindow.setAttribute("aria-label", mode === "closer" ? years.length ? "Target year " + years[0] : "Target year loading" : years.length ? "Year range " + Math.min(...years) + " to " + Math.max(...years) : "Wikipedia theme loading");
   elements.targetYear.textContent = target || currentTargetYear();
 }
 
@@ -659,7 +659,7 @@ function showCloserResult() {
   elements.resultEyebrow.textContent = "CLOSER";
   elements.resultDialogTitle.textContent = "Run over";
   elements.resultScore.textContent = String(closerState.score);
-  elements.resultGrid.textContent = `${closerState.score} CORRECT IN A ROW · BEST ${closerState.best}`;
+  elements.resultGrid.textContent = `BEST ${closerState.best}`;
   elements.resultGrid.setAttribute("aria-label", `${closerState.score} correct in a row. Best score: ${closerState.best}.`);
   elements.shareFeedback.textContent = "";
   elements.shareX.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
@@ -747,7 +747,7 @@ function renderCloserBoard() {
     if (!closerLoading) prepareCloserRound();
     return;
   }
-  elements.comparePrompt.textContent = "Which happened closer to this year?";
+  elements.comparePrompt.textContent = "Which event happened closer to this year?";
   round.events.forEach((event, index) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -821,7 +821,7 @@ function render() {
   elements.promptLine.hidden = mode === "near" || mode === "closer";
   elements.checkOrder.hidden = mode === "near" || mode === "closer";
   elements.challengeEyebrow.textContent = mode === "random" ? "RANDOM WINDOW" : mode === "theme" ? "THEMED" : mode === "closer" ? "CLOSER" : "";
-  elements.challengeTitle.textContent = mode === "closer" ? "Which happened closer?" : "";
+  elements.challengeTitle.textContent = mode === "closer" ? "Closer" : "";
   if (mode === "near") {
     currentPack = null;
     order = [];
