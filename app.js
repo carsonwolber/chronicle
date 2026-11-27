@@ -6,7 +6,7 @@ const slot = Math.floor(Date.now() / windowLength);
 const stateKey = `chroniclr:${slot}`;
 const windowCacheKey = `chroniclr:window:v2:${slot}`;
 const state = JSON.parse(localStorage.getItem(stateKey) || "null") || { plays: 0, lastResult: null };
-const elements = Object.fromEntries(["resetTimer", "orderMode", "themeMode", "nearMode", "gamePanel", "challengeHeading", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "nextPlay", "checkOrder", "shuffleRound"].map(id => [id, document.getElementById(id)]));
+const elements = Object.fromEntries(["resetTimer", "orderMode", "themeMode", "nearMode", "gamePanel", "challengeHeading", "challengeEyebrow", "challengeTitle", "yearWindow", "windowStart", "windowEnd", "promptLine", "eventList", "eventEntry", "targetYear", "eventSearch", "searchEvent", "searchResults", "answerPanel", "feedback", "nextPlay", "checkOrder", "shuffleRound", "resultDialog", "resultScore", "resultGrid", "shareResult", "copyResult", "shareX", "shareWhatsApp", "closeResultDialog", "shareFeedback"].map(id => [id, document.getElementById(id)]));
 let mode = localStorage.getItem("chroniclr:mode") || "random";
 let baseYear = minYear;
 let windowEvents = [];
@@ -21,6 +21,9 @@ let debugSeed = "";
 let debugYear = null;
 let debugEvents = [];
 let randomLoadError = false;
+let shareMessage = "";
+let shareText = "";
+let shareUrl = "";
 let themeLoadKey = "";
 
 function seededRandom(seed) {
@@ -486,6 +489,56 @@ function showOrderAnswer(score) {
   elements.feedback.className = `feedback ${score === 5 ? "positive" : "negative"}`;
 }
 
+function showRandomResult(score) {
+  const squares = order.map((eventIndex, position) => eventIndex === currentCorrectOrder[position] ? "🟩" : "⬛").join("");
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  shareText = `chroniclr · Random Window\n${score}/5 in the right position\n${squares}`;
+  shareUrl = url.toString();
+  shareMessage = `${shareText}\n${shareUrl}`;
+  elements.resultScore.textContent = `${score}/5`;
+  elements.resultGrid.textContent = squares;
+  elements.resultGrid.setAttribute("aria-label", `${score} of 5 in the right position`);
+  elements.shareFeedback.textContent = "";
+  elements.shareX.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
+  elements.shareWhatsApp.href = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`;
+  if (!elements.resultDialog.open) elements.resultDialog.showModal();
+}
+
+async function copyRandomResult() {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(shareMessage);
+    } else {
+      const field = document.createElement("textarea");
+      field.value = shareMessage;
+      field.style.position = "fixed";
+      field.style.opacity = "0";
+      document.body.append(field);
+      field.select();
+      const copied = document.execCommand("copy");
+      field.remove();
+      if (!copied) throw new Error("Copy failed.");
+    }
+    elements.shareFeedback.textContent = "Result copied.";
+  } catch {
+    elements.shareFeedback.textContent = "Could not copy. Use one of the social links.";
+  }
+}
+
+async function shareRandomResult() {
+  if (!navigator.share) {
+    await copyRandomResult();
+    return;
+  }
+  try {
+    await navigator.share({ title: "chroniclr score", text: shareText, url: shareUrl });
+  } catch (error) {
+    if (error.name !== "AbortError") elements.shareFeedback.textContent = "Sharing is unavailable. Copy the result or use a social link.";
+  }
+}
+
 function submitOrder() {
   if (locked || mode === "near") return;
   locked = true;
@@ -498,6 +551,7 @@ function submitOrder() {
   }
   drawRows();
   showOrderAnswer(score);
+  if (mode === "random" && !debugPreview) showRandomResult(score);
   updateStatus();
 }
 
@@ -512,6 +566,7 @@ function showPriorResult() {
   const score = state.lastResult.score;
   drawRows();
   showOrderAnswer(score);
+  if (mode === "random") showRandomResult(score);
   return true;
 }
 
@@ -853,6 +908,12 @@ async function shuffleCurrentRound() {
 elements.orderMode.addEventListener("click", () => setMode("random"));
 elements.themeMode.addEventListener("click", () => setMode("theme"));
 elements.nearMode.addEventListener("click", () => setMode("near"));
+elements.shareResult.addEventListener("click", shareRandomResult);
+elements.copyResult.addEventListener("click", copyRandomResult);
+elements.closeResultDialog.addEventListener("click", () => elements.resultDialog.close());
+elements.resultDialog.addEventListener("click", event => {
+  if (event.target === elements.resultDialog) elements.resultDialog.close();
+});
 elements.checkOrder.addEventListener("click", submitOrder);
 elements.shuffleRound.addEventListener("click", shuffleCurrentRound);
 elements.nextPlay.addEventListener("click", nextPlay);
