@@ -4,7 +4,7 @@
   else root.personEventSearch = api;
 })(typeof globalThis === "object" ? globalThis : this, function () {
   function buildPersonYearSearchQuery(title, year) {
-    const queryTitle = String(title).replaceAll("\\\"", " ").trim();
+    const queryTitle = String(title).replaceAll('"', " ").trim();
     return `intitle:${year} linksto:"${queryTitle}"`;
   }
 
